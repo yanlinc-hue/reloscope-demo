@@ -54,6 +54,19 @@ type PendingAgentAction = {
   kind: "relation-change" | "scene-save";
   title: string;
   description: string;
+  sceneDrafts?: Array<Omit<DemoScene, "id">>;
+};
+
+type ImportedActiveState = {
+  viewMode?: ViewMode;
+  layoutMode?: LayoutMode;
+  selectedId?: string | null;
+  selectedEdgeId?: string | null;
+  activeSceneId?: string;
+  sceneNodeIds?: string[] | null;
+  visibleNodeKinds?: NodeKind[];
+  visibleEdgeKinds?: EdgeKind[];
+  query?: string;
 };
 
 type VisualSnapshot = {
@@ -102,7 +115,7 @@ const ALL_EDGE_KINDS = Object.keys(EDGE_META) as EdgeKind[];
 const AI_SUGGESTIONS = [
   "Identify the three most critical single-source dependencies",
   "Trace the industrial fund's path to both projects",
-  "Show only unverified relationships and their evidence",
+  "Explain why Lanxin Intelligent Controls is high risk",
 ];
 
 const INITIAL_CHAT: ChatMessage[] = [
@@ -144,6 +157,27 @@ function cx(...values: Array<string | false | null | undefined>) {
 
 function normalize(value: string) {
   return value.normalize("NFKC").toLowerCase().trim();
+}
+
+function nextSceneIds(scenes: DemoScene[], count: number): string[] {
+  const used = new Set(scenes.map((scene) => scene.id));
+  const numericIds = scenes
+    .map((scene) => /^SC(\d+)$/.exec(scene.id)?.[1])
+    .filter((value): value is string => Boolean(value))
+    .map(Number);
+  let candidate = Math.max(0, ...numericIds) + 1;
+  const ids: string[] = [];
+
+  while (ids.length < count) {
+    const id = "SC" + String(candidate).padStart(2, "0");
+    if (!used.has(id)) {
+      used.add(id);
+      ids.push(id);
+    }
+    candidate += 1;
+  }
+
+  return ids;
 }
 
 function stableHash(value: string) {
@@ -355,6 +389,7 @@ function parseImportedGraph(filename: string, text: string) {
         risk: ["high", "medium", "low"].includes(String(item.risk)) ? item.risk as DemoNode["risk"] : "medium",
         status: ["verified", "review", "planned"].includes(String(item.status)) ? item.status as DemoNode["status"] : "review",
         sources: Array.isArray(item.sources) ? item.sources.map(String) : ["LOCAL"],
+        pinned: item.pinned === true,
       };
     });
     const ids = new Set(nodes.map((node) => node.id));
@@ -385,7 +420,76 @@ function parseImportedGraph(filename: string, text: string) {
         directed: item.directed !== false && item.directed !== "false",
       };
     });
-    return { nodes, edges };
+    const edgeIds = new Set(edges.map((edge) => edge.id));
+    const seenSceneIds = new Set<string>();
+    const scenes: DemoScene[] = Array.isArray(payload.scenes)
+      ? payload.scenes.flatMap((raw) => {
+        if (!raw || typeof raw !== "object") return [];
+        const item = raw as Record<string, unknown>;
+        const id = String(item.id ?? "").trim();
+        const selectedId = String(item.selectedId ?? "").trim();
+        if (!id || seenSceneIds.has(id) || !ids.has(selectedId)) return [];
+        seenSceneIds.add(id);
+        const layout = ["force", "radial", "layered"].includes(String(item.layout))
+          ? item.layout as LayoutMode
+          : "force";
+        const viewMode = ["2d", "3d"].includes(String(item.viewMode))
+          ? item.viewMode as ViewMode
+          : undefined;
+        const selectedEdgeId = edgeIds.has(String(item.selectedEdgeId))
+          ? String(item.selectedEdgeId)
+          : undefined;
+        const visibleNodes = Array.isArray(item.visibleNodes)
+          ? item.visibleNodes.map(String).filter((nodeId) => ids.has(nodeId))
+          : undefined;
+        const visibleKinds = Array.isArray(item.visibleKinds)
+          ? item.visibleKinds.filter((kind): kind is EdgeKind => ALL_EDGE_KINDS.includes(kind as EdgeKind))
+          : undefined;
+        return [{
+          id,
+          title: String(item.title ?? id),
+          subtitle: String(item.subtitle ?? "Imported project scene"),
+          viewMode,
+          layout,
+          selectedId,
+          selectedEdgeId,
+          visibleNodes,
+          visibleKinds,
+          callout: String(item.callout ?? "Imported project scene."),
+        }];
+      })
+      : [];
+
+    const rawActiveState = payload.activeState && typeof payload.activeState === "object"
+      ? payload.activeState as Record<string, unknown>
+      : null;
+    const activeState: ImportedActiveState | null = rawActiveState
+      ? {
+        viewMode: ["2d", "3d"].includes(String(rawActiveState.viewMode)) ? rawActiveState.viewMode as ViewMode : undefined,
+        layoutMode: ["force", "radial", "layered"].includes(String(rawActiveState.layoutMode)) ? rawActiveState.layoutMode as LayoutMode : undefined,
+        selectedId: ids.has(String(rawActiveState.selectedId)) ? String(rawActiveState.selectedId) : null,
+        selectedEdgeId: edgeIds.has(String(rawActiveState.selectedEdgeId)) ? String(rawActiveState.selectedEdgeId) : null,
+        activeSceneId: seenSceneIds.has(String(rawActiveState.activeSceneId)) ? String(rawActiveState.activeSceneId) : "",
+        sceneNodeIds: Array.isArray(rawActiveState.sceneNodeIds)
+          ? rawActiveState.sceneNodeIds.map(String).filter((nodeId) => ids.has(nodeId))
+          : null,
+        visibleNodeKinds: Array.isArray(rawActiveState.visibleNodeKinds)
+          ? rawActiveState.visibleNodeKinds.filter((kind): kind is NodeKind => ALL_NODE_KINDS.includes(kind as NodeKind))
+          : undefined,
+        visibleEdgeKinds: Array.isArray(rawActiveState.visibleEdgeKinds)
+          ? rawActiveState.visibleEdgeKinds.filter((kind): kind is EdgeKind => ALL_EDGE_KINDS.includes(kind as EdgeKind))
+          : undefined,
+        query: typeof rawActiveState.query === "string" ? rawActiveState.query : "",
+      }
+      : null;
+
+    return {
+      nodes,
+      edges,
+      scenes,
+      activeState,
+      isProject: payload.kind === "relationship-studio-project",
+    };
   }
 
   const table = parseCsv(text);
@@ -440,7 +544,7 @@ function parseImportedGraph(filename: string, text: string) {
       directed: column(row, "directed").toLowerCase() !== "false",
     });
   });
-  return { nodes: [...nodeById.values()], edges };
+  return { nodes: [...nodeById.values()], edges, scenes: [], activeState: null, isProject: false };
 }
 
 type CanvasProps = {
@@ -980,12 +1084,54 @@ export default function Home() {
   const connectedEdges = useMemo(() => selectedId
     ? visibleEdges.filter((edge) => edge.source === selectedId || edge.target === selectedId)
     : [], [selectedId, visibleEdges]);
+  const totalConnectedEdgeCount = useMemo(() => selectedId
+    ? edges.filter((edge) => edge.source === selectedId || edge.target === selectedId).length
+    : 0, [edges, selectedId]);
   const selectedEdge = selectedEdgeId
     ? edges.find((edge) => edge.id === selectedEdgeId) ?? null
     : null;
 
   const reviewCount = edges.filter((edge) => edge.status === "review").length;
   const verifiedCount = edges.length - reviewCount;
+  const isDemoDataset = useMemo(() =>
+    nodes.length === DEMO_NODES.length
+    && edges.length === DEMO_EDGES.length
+    && DEMO_NODES.every((node) => nodes.some((item) => item.id === node.id))
+    && DEMO_EDGES.every((edge) => edges.some((item) => item.id === edge.id)),
+  [edges, nodes]);
+
+  useEffect(() => {
+    const sceneId = new URLSearchParams(window.location.hash.slice(1)).get("scene");
+    const scene = DEMO_SCENES.find((item) => item.id === sceneId);
+    if (!scene) return;
+
+    const timer = window.setTimeout(() => {
+      const allowedNodeIds = scene.visibleNodes ? new Set(scene.visibleNodes) : null;
+      const allowedKinds = scene.visibleKinds ? new Set(scene.visibleKinds) : null;
+      const edgeIsVisible = (edge: DemoEdge) =>
+        (!allowedNodeIds || (allowedNodeIds.has(edge.source) && allowedNodeIds.has(edge.target)))
+        && (!allowedKinds || allowedKinds.has(edge.kind));
+      const edge = scene.selectedEdgeId
+        ? DEMO_EDGES.find((item) => item.id === scene.selectedEdgeId && edgeIsVisible(item))
+        : DEMO_EDGES.find((item) => (item.source === scene.selectedId || item.target === scene.selectedId) && edgeIsVisible(item));
+
+      setNodes(applyLayout(DEMO_NODES.map((node) => ({ ...node })), DEMO_EDGES, scene.layout, scene.selectedId));
+      setEdges(DEMO_EDGES.map((item) => ({ ...item })));
+      setScenes(DEMO_SCENES.map((item) => ({ ...item })));
+      setViewMode(scene.viewMode ?? "3d");
+      setLayoutMode(scene.layout);
+      setSelectedId(scene.selectedId);
+      setSelectedEdgeId(edge?.id ?? null);
+      setActiveSceneId(scene.id);
+      setSceneNodeIds(scene.visibleNodes ?? null);
+      setVisibleNodeKinds(ALL_NODE_KINDS);
+      setVisibleEdgeKinds(scene.visibleKinds ?? ALL_EDGE_KINDS);
+      setResetKey((value) => value + 1);
+      setNotice("SHARED DEMO SCENE RESTORED · " + scene.id);
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     chatThreadRef.current?.scrollTo({ top: chatThreadRef.current.scrollHeight, behavior: "smooth" });
@@ -1092,9 +1238,16 @@ export default function Home() {
     setLayoutMode(scene.layout);
     setNodes((current) => applyLayout(current.map((node) => ({ ...node, pinned: false })), edges, scene.layout, scene.selectedId));
     setSelectedId(scene.selectedId);
-    const edge = edges.find((item) => item.source === scene.selectedId || item.target === scene.selectedId);
+    const allowedNodeIds = scene.visibleNodes ? new Set(scene.visibleNodes) : null;
+    const allowedKinds = scene.visibleKinds ? new Set(scene.visibleKinds) : null;
+    const edgeIsVisible = (edge: DemoEdge) =>
+      (!allowedNodeIds || (allowedNodeIds.has(edge.source) && allowedNodeIds.has(edge.target)))
+      && (!allowedKinds || allowedKinds.has(edge.kind));
+    const edge = scene.selectedEdgeId
+      ? edges.find((item) => item.id === scene.selectedEdgeId && edgeIsVisible(item))
+      : edges.find((item) => (item.source === scene.selectedId || item.target === scene.selectedId) && edgeIsVisible(item));
     setSelectedEdgeId(edge?.id ?? null);
-    setViewMode(scene.id === "SC03" || scene.id === "SC04" ? "2d" : "3d");
+    setViewMode(scene.viewMode ?? "3d");
     setResetKey((value) => value + 1);
     setNotice("SCENE " + scene.id.replace("SC", "") + " APPLIED · " + scene.callout);
   };
@@ -1133,6 +1286,23 @@ export default function Home() {
         setChatMessages((current) => [...current, { id: "A-" + Date.now(), role: "assistant", ...message }]);
       };
 
+      const demoOnlyIntent = ["upstream", "risk-evidence", "capital-path", "blocked-control-change", "investment-scenes"].includes(intent);
+      if (!isDemoDataset && demoOnlyIntent) {
+        respond({
+          body: "This imported graph remains unchanged. The guided Jichuan investigation macros are bound to the bundled synthetic project, so they cannot safely target imported IDs. You can still select an imported entity, inspect any relationship, search, filter, change layouts, and ask the chat to explain the currently selected edge.",
+          plan: {
+            id: "AP-IMPORTED-GRAPH-GUARD",
+            title: "Imported graph safety boundary",
+            risk: "R0",
+            status: "blocked",
+            steps: ["Detect imported project", "Reject demo-only IDs", "Preserve the current graph"],
+            impact: "0 visual actions · 0 graph-data changes",
+          },
+        });
+        setAgentBusy(false);
+        return;
+      }
+
       if (intent === "blocked-control-change") {
         const scene = scenes.find((item) => item.id === "SC03");
         if (scene) applyScene(scene);
@@ -1142,11 +1312,11 @@ export default function Home() {
         setPendingAction({
           id: "PA-CONTROL",
           kind: "relation-change",
-          title: "Jiaxu Capital → Lanxin Intelligent Controls: change to “effective control”",
+          title: "Jiaxu Capital → Lanxin Intelligent Controls: change to “de facto control”",
           description: "Current evidence supports only an 18% direct equity stake. It does not establish control, so the write has been blocked.",
         });
         respond({
-          body: "I cannot change this relationship to “effective control.” The current source proves only that Jiaxu Capital owns an 18% direct stake; it provides no voting arrangement, board rights, or concert-party agreement. I located the original relationship and evidence on the right.",
+          body: "I cannot change this relationship to “de facto control.” The current source proves only that Jiaxu Capital owns an 18% direct stake; it provides no voting arrangement, board rights, or concert-party agreement. I located the original relationship and evidence on the right.",
           plan: {
             id: "AP-04",
             title: "Relationship change preflight",
@@ -1164,6 +1334,17 @@ export default function Home() {
           kind: "scene-save",
           title: "Save 3 investment committee scenes",
           description: "Upstream dependencies, capital pathways, and evidence gaps. Saving updates only the local demo project, not the graph data.",
+          sceneDrafts: (agentTurn.sceneDrafts ?? []).map((draft) => ({
+            title: draft.title,
+            subtitle: draft.subtitle,
+            viewMode: "2d",
+            layout: draft.layout,
+            selectedId: draft.selectedId,
+            selectedEdgeId: draft.selectedEdgeId,
+            visibleNodes: [...draft.scopeNodeIds],
+            visibleKinds: [...draft.edgeKinds],
+            callout: draft.callout,
+          })),
         });
         respond({
           body: "I prepared three investment committee scene drafts. They reuse the same graph data and change only filters, layout, focus, and narrative. Confirm to save them to the scene strip.",
@@ -1175,7 +1356,7 @@ export default function Home() {
             steps: ["Upstream dependency", "Capital path", "Evidence gap"],
             impact: "3 local scenes · 0 graph-data changes",
           },
-          sceneDrafts: ["01 · Upstream dependency: three long replacement cycles", "02 · Capital path: fund-to-project routes", "03 · Evidence gap: equity does not equal control"],
+          sceneDrafts: ["01 · Upstream dependency: concentration and substitution constraints", "02 · Capital path: fund-to-project routes", "03 · Evidence gap: equity does not equal control"],
         });
       } else if (intent === "capital-path") {
         const scene = scenes.find((item) => item.id === "SC03");
@@ -1185,7 +1366,7 @@ export default function Home() {
         setSelectedEdgeId("E12");
         setHighlightNodeIds(["N11", "N10", "N05", "N07", "N17", "N18"]);
         respond({
-          body: "I generated the capital-path view. The Donglan Industrial Guidance Fund connects through Jiaxu Capital to Lanxin Intelligent Controls and Haiyu Energy Storage, then extends to the project layer. Fund commitments and equity stakes establish a capital path, not effective control on their own.",
+          body: "I generated the capital-path view. The Donglan Industrial Guidance Fund connects through Jiaxu Capital to Lanxin Intelligent Controls and Haiyu Energy Storage, then extends to the project layer. Fund commitments and equity stakes establish a capital path, not de facto control on their own.",
           plan: {
             id: "AP-03",
             title: "Fund-to-project path analysis",
@@ -1194,8 +1375,36 @@ export default function Home() {
             steps: ["Locate the fund", "Calculate shortest paths", "Find shared capital nodes", "Switch to layered 2D"],
             impact: "8 entities · capital / governance / R&D · Undo available",
           },
-          evidenceRefs: ["S08-C1", "S08-C2", "S08-C3"],
+          evidenceRefs: ["S08-C1", "S08-C2", "S08-C3", "S12-C2", "S12-C4", "S13-C1", "S13-C2", "S13-C3"],
         });
+      } else if (intent === "relationship-evidence") {
+        const edgeId = agentTurn.plan.edgeIds[0] ?? selectedEdgeId;
+        const relationship = edges.find((edge) => edge.id === edgeId);
+        if (relationship) {
+          const sourceName = nodeById.get(relationship.source)?.name ?? relationship.source;
+          const targetName = nodeById.get(relationship.target)?.name ?? relationship.target;
+          setSelectedId(relationship.source);
+          setSelectedEdgeId(relationship.id);
+          setHighlightNodeIds([relationship.source, relationship.target]);
+          setInspectorTab("evidence");
+          respond({
+            body: `${relationship.id} is ${sourceName} → ${targetName}: “${relationship.label}.” The cited source states: “${relationship.evidence}” It is ${relationship.status === "verified" ? "verified" : "in review"} with ${Math.round(relationship.confidence * 100)}% extraction confidence. This supports the edge as shown, but does not independently prove broader control or causality.`,
+            plan: {
+              id: "AP-RELATIONSHIP-EVIDENCE",
+              title: "Relationship evidence explanation",
+              risk: "R0",
+              status: "applied",
+              steps: ["Read selected edge", "Open source excerpt", "Explain graph role", "Preserve evidence boundary"],
+              impact: "1 relationship · 1 evidence reference · 0 graph-data changes",
+            },
+            evidenceRefs: [relationship.evidenceId],
+          });
+        } else {
+          respond({
+            body: "The selected relationship is no longer available in the current graph revision. Select a relationship and try again; no visual action was applied.",
+            plan: { id: "AP-RELATIONSHIP-MISSING", title: "Relationship unavailable", risk: "R0", status: "blocked", steps: ["Resolve selected edge", "Stop on missing reference"], impact: "0 visual actions" },
+          });
+        }
       } else if (intent === "risk-evidence") {
         const scene = scenes.find((item) => item.id === "SC02");
         if (scene) applyScene(scene);
@@ -1204,7 +1413,7 @@ export default function Home() {
         setHighlightNodeIds(["N02", "N03", "N05"]);
         setInspectorTab("evidence");
         respond({
-          body: "Lanxin Intelligent Controls is risky because of concentrated coverage and slow replacement—not centrality alone. Its controllers cover 62% of Jichuan Power's battery packs, with a replacement validation cycle above seven months. Two separate material dependencies are 44% for cathode material and 36% for direct lithium supply; these category-specific ratios must not be added together.",
+          body: "Lanxin Intelligent Controls is risky because of concentrated coverage and limited substitutability—not centrality alone. Its controllers cover 62% of Jichuan Power's battery packs, while the S14 substitutability assessment flags slow replacement across critical suppliers. Two separate material dependencies are 44% for cathode material and 36% for direct lithium supply; these category-specific ratios must not be added together.",
           plan: {
             id: "AP-02",
             title: "Evidence-first risk explanation",
@@ -1213,14 +1422,14 @@ export default function Home() {
             steps: ["Read high-dependency edges", "Open source excerpts", "Compare replacement cycles", "Preserve metric caveats"],
             impact: "4 evidence references · 0 graph-data changes",
           },
-          evidenceRefs: ["S01-C2", "S03-C1", "S03-C2", "S04-C1"],
+          evidenceRefs: ["S01-C2", "S03-C1", "S03-C2", "S04-C1", "S14"],
         });
       } else if (intent === "upstream") {
         const scene = scenes.find((item) => item.id === "SC02");
         if (scene) applyScene(scene);
         setHighlightNodeIds(["N02", "N03", "N05"]);
         respond({
-          body: "I expanded two hops upstream from Jichuan Power and retained only supply and R&D relationships. The highlighted nodes—Xingyu Lithium, Chengyue Advanced Materials, and Lanxin Intelligent Controls—each have long replacement cycles.",
+          body: "I expanded two hops upstream from Jichuan Power and retained only supply and R&D relationships. The highlighted nodes—Xingyu Lithium, Chengyue Advanced Materials, and Lanxin Intelligent Controls—combine high concentration with limited substitution speed in the S14 assessment.",
           plan: {
             id: "AP-01B",
             title: "Upstream dependency investigation",
@@ -1229,7 +1438,7 @@ export default function Home() {
             steps: ["Locate the focal entity", "Expand two hops", "Filter relationships", "Highlight high dependencies"],
             impact: "6 entities · 8 relationships · Undo available",
           },
-          evidenceRefs: ["S01-C2", "S03-C1", "S03-C2"],
+          evidenceRefs: ["S01-C2", "S03-C1", "S03-C2", "S14"],
         });
       } else if (term.includes("显示全部") || term.includes("重置") || term.includes("show all") || term.includes("reset")) {
         const scene = scenes.find((item) => item.id === "SC01");
@@ -1271,25 +1480,31 @@ export default function Home() {
       return;
     }
 
-    const additions: DemoScene[] = [
-      { id: "SC05", title: "IC 01 · Upstream dependency", subtitle: "Three long replacement cycles and their evidence", layout: "radial", selectedId: "N01", visibleNodes: ["N01", "N02", "N03", "N04", "N05", "N12"], visibleKinds: ["supply", "research"], callout: "Concentration and replacement time jointly create supply-resilience risk." },
-      { id: "SC06", title: "IC 02 · Capital pathways", subtitle: "The guidance fund connects to critical capabilities through Jiaxu Capital", layout: "layered", selectedId: "N11", visibleNodes: ["N01", "N05", "N07", "N10", "N11", "N17", "N18"], visibleKinds: ["capital", "governance", "delivery"], callout: "A capital path does not automatically establish effective control." },
-      { id: "SC07", title: "IC 03 · Evidence gaps", subtitle: "Separate verified facts from unreviewed inference", layout: "layered", selectedId: "N10", visibleNodes: ["N05", "N10", "N11", "N16"], visibleKinds: ["capital", "governance"], callout: "An 18% direct stake does not independently establish effective control." },
-    ];
-    setScenes((current) => [...current.filter((scene) => !additions.some((item) => item.id === scene.id)), ...additions]);
+    const drafts = pendingAction.sceneDrafts ?? [];
+    if (!drafts.length) {
+      setPendingAction(null);
+      setNotice("SCENE SAVE CANCELLED · NO VALID DRAFTS");
+      return;
+    }
+    const ids = nextSceneIds(scenes, drafts.length);
+    const additions: DemoScene[] = drafts.map((draft, index) => ({ ...draft, id: ids[index] }));
+    setScenes((current) => [...current, ...additions]);
     setPendingAction(null);
     setChatMessages((current) => [...current, { id: "A-" + Date.now(), role: "assistant", body: "Three investment committee scenes were saved to the strip below. They record only the view and narrative; no entity, relationship, or evidence was changed.", plan: { id: "AP-05C", title: "Investment committee scenes saved", risk: "R2", status: "saved", steps: ["Save upstream dependency", "Save capital pathways", "Save evidence gaps"], impact: "3 local scenes added" } }]);
     setNotice("3 LOCAL INVESTMENT COMMITTEE SCENES SAVED");
   };
 
   const saveScene = () => {
-    const number = scenes.length + 1;
+    const [sceneId] = nextSceneIds(scenes, 1);
+    const number = Number(sceneId.slice(2));
     const scene: DemoScene = {
-      id: "SC" + String(number).padStart(2, "0"),
+      id: sceneId,
       title: "Custom analysis scene " + number,
       subtitle: visibleNodes.length + " entities · " + visibleEdges.length + " relationships",
+      viewMode,
       layout: layoutMode,
       selectedId: selectedId ?? visibleNodes[0]?.id ?? nodes[0]?.id ?? "",
+      selectedEdgeId: selectedEdgeId ?? undefined,
       visibleNodes: sceneNodeIds ?? visibleNodes.map((node) => node.id),
       visibleKinds: visibleEdgeKinds,
       callout: "Current filters, layout, and focus saved.",
@@ -1312,8 +1527,12 @@ export default function Home() {
         viewMode,
         layoutMode,
         selectedId,
+        selectedEdgeId,
+        activeSceneId,
+        sceneNodeIds,
         visibleNodeKinds,
         visibleEdgeKinds,
+        query,
       },
     };
     downloadBlob(new Blob([JSON.stringify(project, null, 2)], { type: "application/json" }), "donglan-relationship-project.json");
@@ -1322,9 +1541,16 @@ export default function Home() {
   };
 
   const shareScene = async () => {
+    const shareableScene = DEMO_SCENES.find((scene) => scene.id === activeSceneId);
+    if (!shareableScene) {
+      setNotice("CUSTOM SCENE IS LOCAL · EXPORT THE PROJECT JSON TO SHARE IT");
+      return;
+    }
     try {
-      await navigator.clipboard.writeText(window.location.href + "#scene=" + (activeSceneId || "custom"));
-      setNotice("LOCAL DEMO SCENE LINK COPIED");
+      const url = new URL(window.location.href);
+      url.hash = "scene=" + shareableScene.id;
+      await navigator.clipboard.writeText(url.toString());
+      setNotice("REPLAYABLE DEMO SCENE LINK COPIED");
     } catch {
       setNotice("SCENE READY · COPY THE CURRENT URL");
     }
@@ -1339,24 +1565,33 @@ export default function Home() {
     try {
       const result = parseImportedGraph(file.name, await file.text());
       if (!result.nodes.length || !result.edges.length) throw new Error("The file contains no displayable relationships");
-      setNodes(applyLayout(result.nodes, result.edges, "force", result.nodes[0].id));
+      const importedState = result.activeState;
+      const importedLayout = importedState?.layoutMode ?? "force";
+      const importedSelectedId = importedState?.selectedId ?? result.nodes[0].id;
+      const importedSelectedEdgeId = importedState?.selectedEdgeId ?? result.edges[0].id;
+      setNodes(result.isProject ? result.nodes : applyLayout(result.nodes, result.edges, importedLayout, importedSelectedId));
       setEdges(result.edges);
-      setSelectedId(result.nodes[0].id);
-      setSelectedEdgeId(result.edges[0].id);
-      setScenes([]);
-      setSceneNodeIds(null);
-      setVisibleNodeKinds(ALL_NODE_KINDS);
-      setVisibleEdgeKinds(ALL_EDGE_KINDS);
+      setSelectedId(importedSelectedId);
+      setSelectedEdgeId(importedSelectedEdgeId);
+      setScenes(result.scenes);
+      setActiveSceneId(importedState?.activeSceneId ?? "");
+      setSceneNodeIds(importedState?.sceneNodeIds ?? null);
+      setVisibleNodeKinds(importedState?.visibleNodeKinds ?? ALL_NODE_KINDS);
+      setVisibleEdgeKinds(importedState?.visibleEdgeKinds ?? ALL_EDGE_KINDS);
       setHighlightNodeIds([]);
       setVisualHistory([]);
-      setLayoutMode("force");
+      setViewMode(importedState?.viewMode ?? "3d");
+      setLayoutMode(importedLayout);
+      setQuery(importedState?.query ?? "");
       setResetKey((value) => value + 1);
       setImportOpen(false);
       setChatMessages((current) => [...current, {
         id: "A-IMPORT-" + Date.now(),
         role: "assistant",
-        body: `Imported ${result.nodes.length} entities and ${result.edges.length} relationships locally in your browser. The imported content is unverified and will not be treated as fact automatically; you can now explore it through the conversation.`,
-        plan: { id: "AP-IMPORT", title: "Local data import", risk: "R1", status: "applied", steps: ["Parse file", "Validate endpoints", "Generate stable layout"], impact: `${result.nodes.length} entities · ${result.edges.length} relationships` },
+        body: result.isProject
+          ? `Restored ${result.nodes.length} entities, ${result.edges.length} relationships, ${result.scenes.length} scenes, and the saved view state locally in your browser.`
+          : `Imported ${result.nodes.length} entities and ${result.edges.length} relationships locally in your browser. The content remains unverified. You can focus imported entities and ask the chat to explain a selected relationship; guided Jichuan macros remain disabled for imported IDs.`,
+        plan: { id: "AP-IMPORT", title: result.isProject ? "Local project restore" : "Local data import", risk: "R1", status: "applied", steps: ["Parse file", "Validate endpoints", result.isProject ? "Restore scenes and view state" : "Generate stable layout"], impact: `${result.nodes.length} entities · ${result.edges.length} relationships · ${result.scenes.length} scenes` },
       }]);
       setNotice("LOCAL IMPORT COMPLETE · " + result.nodes.length + " ENTITIES · " + result.edges.length + " RELATIONS");
     } catch (error) {
@@ -1467,9 +1702,12 @@ export default function Home() {
                         <div className="evidence-chips">
                           {message.evidenceRefs.map((ref) => (
                             <button type="button" key={ref} onClick={() => {
-                              const edge = edges.find((item) => item.evidenceId === ref);
+                              const source = DEMO_SOURCES.find((item) => item.id === ref);
+                              const edge = edges.find((item) => item.evidenceId === ref)
+                                ?? edges.find((item) => item.evidenceId.startsWith(ref + "-") && (item.source === selectedId || item.target === selectedId))
+                                ?? edges.find((item) => item.evidenceId.startsWith(ref + "-"));
                               if (edge) selectEdge(edge.id);
-                              setNotice("EVIDENCE LOCATED · " + ref);
+                              setNotice(source ? `SOURCE LOCATED · ${source.id} · ${source.title}` : "EVIDENCE LOCATED · " + ref);
                             }}>{ref} ↗</button>
                           ))}
                         </div>
@@ -1778,7 +2016,7 @@ export default function Home() {
                   <div className="analysis-card">
                     <span>Derived Observation</span>
                     <h3>{selectedNode.id === "N01" ? "A central hub—and a potential single point" : "Requires human judgment across sources and alternatives"}</h3>
-                    <p>{selectedNode.id === "N01" ? "Fourteen direct relationships span materials, controls, capital, and project delivery. A delay in any critical capability may propagate through the network." : selectedNode.summary}</p>
+                    <p>{selectedNode.id === "N01" ? `${totalConnectedEdgeCount} direct relationships span materials, controls, capital, and project delivery. A delay in any critical capability may propagate through the network.` : selectedNode.summary}</p>
                     <em>This observation is derived from graph structure; it is not a factual conclusion.</em>
                   </div>
                   <button type="button" className="scenario-button" onClick={() => {

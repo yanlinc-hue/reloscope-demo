@@ -53,8 +53,10 @@ export interface DemoScene {
   id: string;
   title: string;
   subtitle: string;
+  viewMode?: "2d" | "3d";
   layout: "force" | "radial" | "layered";
   selectedId: string;
+  selectedEdgeId?: string;
   visibleNodes?: string[];
   visibleKinds?: EdgeKind[];
   callout: string;
@@ -123,7 +125,7 @@ export const DEMO_SOURCES: DemoSource[] = [
     title: "Jiaxu Capital New Energy Portfolio Review",
     date: "2026-01-10",
     type: "Corporate Materials",
-    summary: "Discloses Jiaxu Capital's new energy holdings, management team, and anchor limited partner.",
+    summary: "Discloses Jiaxu Capital's new energy holdings, management team, and anchor institutional investor.",
   },
   {
     id: "S09",
@@ -325,7 +327,7 @@ export const DEMO_NODES: DemoNode[] = [
     x: -9,
     y: -29,
     z: 2,
-    summary: "A direct investor in Jichuan Power and the anchor limited partner in Jiaxu New Energy Fund.",
+    summary: "A direct investor in Jichuan Power and the anchor institutional investor in Jiaxu Capital's new-energy investment platform.",
     metric: "Fund size RMB 20bn",
     risk: "low",
     status: "verified",
@@ -602,11 +604,11 @@ export const DEMO_EDGES: DemoEdge[] = [
     source: "N11",
     target: "N10",
     kind: "capital",
-    label: "Anchor LP · 24% commitment",
+    label: "Strategic capital commitment · 24%",
     weight: 0.76,
     status: "verified",
     evidenceId: "S08-C2",
-    evidence: "Donglan Industrial Guidance Fund has committed 24% of the interests in Jiaxu New Energy Fund.",
+    evidence: "Donglan Industrial Guidance Fund has committed capital equal to 24% of Jiaxu Capital's new-energy investment platform.",
     sourceTitle: "Jiaxu Capital New Energy Portfolio Review",
     location: "p.2",
     confidence: 0.98,
@@ -794,8 +796,8 @@ export const DEMO_EDGES: DemoEdge[] = [
   },
   {
     id: "E25",
-    source: "N17",
-    target: "N06",
+    source: "N06",
+    target: "N17",
     kind: "delivery",
     label: "Procurement of 1,200 new energy commercial vehicles",
     weight: 0.88,
@@ -809,8 +811,8 @@ export const DEMO_EDGES: DemoEdge[] = [
   },
   {
     id: "E26",
-    source: "N17",
-    target: "N01",
+    source: "N01",
+    target: "N17",
     kind: "delivery",
     label: "Battery-pack supply · 1.9 GWh",
     weight: 0.86,
@@ -919,36 +921,44 @@ export const DEMO_SCENES: DemoScene[] = [
     id: "SC01",
     title: "A Single-Core New Energy Ecosystem",
     subtitle: "Jichuan Power connects upstream materials, enabling technologies, capital, and two end-use segments",
+    viewMode: "3d",
     layout: "force",
     selectedId: "N01",
-    callout: "14 direct relationships and betweenness centrality of 0.41. Both growth and systemic risk are concentrated through Jichuan Power.",
+    selectedEdgeId: "E02",
+    callout: "15 direct relationships and betweenness centrality of 0.41. Both growth and systemic risk are concentrated through Jichuan Power.",
   },
   {
     id: "SC02",
     title: "Three High-Dependency Edges Converge on Core Manufacturing",
-    subtitle: "Lithium salts, cathode materials, and control systems each have substitution lead times exceeding seven months",
+    subtitle: "Lithium salts, cathode materials, and control systems combine high concentration with slow substitution",
+    viewMode: "3d",
     layout: "radial",
     selectedId: "N01",
+    selectedEdgeId: "E05",
     visibleNodes: ["N01", "N02", "N03", "N04", "N05", "N12"],
     visibleKinds: ["supply", "research"],
     callout: "The 36% lithium-salt share, 44% cathode-material share, and 62% BMS coverage apply to different categories and must not be aggregated, but collectively expose insufficient substitution speed.",
   },
   {
     id: "SC03",
-    title: "One Capital Chain Spans Three Critical Capabilities",
-    subtitle: "The industrial guidance fund connects cells, control systems, and storage integration through Jiaxu Capital",
+    title: "Capital Paths Reach Two Strategic Projects",
+    subtitle: "The industrial guidance fund connects critical capabilities to both projects through direct and platform-level investment paths",
+    viewMode: "2d",
     layout: "layered",
-    selectedId: "N10",
-    visibleNodes: ["N01", "N05", "N07", "N10", "N11", "N12", "N15", "N16"],
-    visibleKinds: ["capital", "governance", "research"],
-    callout: "The capital structure may improve coordination efficiency while amplifying the cross-segment transmission of financing and governance changes; equity ownership does not constitute control.",
+    selectedId: "N11",
+    selectedEdgeId: "E12",
+    visibleNodes: ["N01", "N05", "N07", "N10", "N11", "N17", "N18"],
+    visibleKinds: ["capital", "delivery"],
+    callout: "The shortest association path and the strictly directed capital-to-delivery path are both visible; neither establishes de facto control.",
   },
   {
     id: "SC04",
     title: "RMB 2.76bn Project Pipeline Shares a Common Technology Base",
     subtitle: "Both projects depend on Jichuan Power and Lanxin Intelligent Controls; Qingyu also faces a grid-connection acceptance gate",
+    viewMode: "2d",
     layout: "layered",
     selectedId: "N17",
+    selectedEdgeId: "E26",
     visibleNodes: ["N01", "N05", "N06", "N07", "N09", "N13", "N14", "N17", "N18"],
     visibleKinds: ["support", "delivery", "certification"],
     callout: "Beigang represents RMB 1.8bn and Qingyu RMB 960m; delays at shared supply nodes would affect both growth trajectories.",

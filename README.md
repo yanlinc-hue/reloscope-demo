@@ -21,7 +21,7 @@ This demo uses deterministic local orchestration for a stable presentation. It d
 
 - `Why is Lanxin Intelligent Controls a high-risk node?`
 - `Trace the industrial fund's path to both projects.`
-- `Change Jiaxu Capital's relationship to Lanxin Intelligent Controls to effective control and mark it verified.`
+- `Change Jiaxu Capital's relationship to Lanxin Intelligent Controls to de facto control and mark it verified.`
 - `Turn this analysis into investment committee scenes.`
 
 ## Local development

@@ -19,6 +19,7 @@ test("server-renders the chat-driven visual analyst demo", async () => {
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
 
   const html = await response.text();
+  assert.match(html, /<html[^>]+lang="en"/);
   assert.match(html, /RELOSCOPE/);
   assert.match(html, /Visual Analyst/);
   assert.match(html, /DEMO AGENT · LOCAL ORCHESTRATION/);

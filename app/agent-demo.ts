@@ -11,6 +11,7 @@ export type AgentIntent =
   | "welcome"
   | "upstream"
   | "risk-evidence"
+  | "relationship-evidence"
   | "capital-path"
   | "blocked-control-change"
   | "investment-scenes"
@@ -111,7 +112,7 @@ export const AGENT_EXECUTION_POLICY =
 
 const UPSTREAM_NODE_IDS = ["N01", "N02", "N03", "N04", "N05", "N12"];
 const UPSTREAM_EDGE_IDS = ["E01", "E02", "E03", "E04", "E05", "E18", "E19", "E20"];
-const UPSTREAM_EVIDENCE_IDS = ["S01-C2", "S03-C1", "S03-C2", "S03-C3", "S04-C1", "S09-C1", "S09-C2"];
+const UPSTREAM_EVIDENCE_IDS = ["S01-C2", "S02-C4", "S03-C1", "S03-C2", "S03-C3", "S04-C1", "S09-C1", "S09-C2"];
 
 const CAPITAL_NODE_IDS = ["N11", "N10", "N01", "N05", "N07", "N17", "N18"];
 const CAPITAL_EDGE_IDS = ["E11", "E12", "E13", "E14", "E26", "E28", "E29", "E30", "E31"];
@@ -167,7 +168,7 @@ const SCENE_DRAFTS: SceneDraft[] = [
     edgeKinds: ["capital", "circular", "research", "certification"],
     highlightNodeIds: ["N10", "N05", "N08", "N03", "N18"],
     highlightEdgeIds: ["E13", "E09", "E20", "E32"],
-    callout: "E13 establishes only that Jiaxu Capital holds an 18% stake in Lanxin Control. E09, E20, and E32 respectively represent a recycling target, a pilot plan, and incomplete acceptance; none may be presented as a completed fact.",
+    callout: "E13 establishes only that Jiaxu Capital holds an 18% stake in Lanxin Intelligent Controls. E09, E20, and E32 respectively represent a recycling target, a pilot plan, and incomplete acceptance; none may be presented as a completed fact.",
     evidenceIds: ["S08-C1", "S07-C2", "S09-C2", "S13-C4"],
     status: "draft",
   },
@@ -194,7 +195,7 @@ function plan(
 function buildWelcomeTurn(): AgentTurn {
   return {
     assistant: assistant(
-      "I can run read-only graph investigations directly: expand Jichuan Power's upstream network, explain risk evidence, trace paths from the Donglan Industry Guidance Fund, or prepare three investment-committee scene drafts. Relationship and scene writes are always previewed and held for confirmation.",
+      "I can run read-only graph investigations directly: expand Jichuan Power's upstream network, explain risk evidence, trace paths from the Donglan Industrial Guidance Fund, or prepare three investment-committee scene drafts. Relationship and scene writes are always previewed and held for confirmation.",
     ),
     plan: plan({
       id: "AP-WELCOME",
@@ -284,6 +285,30 @@ function buildRiskEvidenceTurn(): AgentTurn {
   };
 }
 
+function buildRelationshipEvidenceTurn(context: AgentContext): AgentTurn {
+  const edgeId = context.selectedEdgeId ?? "the selected relationship";
+
+  return {
+    assistant: assistant(
+      `I will explain ${edgeId} from its cited source, status, and direction without extending the evidence into a broader causal or control claim.`,
+    ),
+    plan: plan({
+      id: "AP-RELATIONSHIP-EVIDENCE",
+      intent: "relationship-evidence",
+      title: "Explain the Selected Relationship",
+      summary: "Read the selected edge and its source excerpt, then explain why it matters within the current graph.",
+      execution: "read-only-auto",
+      steps: ["Read the selected edge", "Open its evidence excerpt", "Explain its graph role", "Preserve the evidence boundary"],
+      nodeIds: [],
+      edgeIds: context.selectedEdgeId ? [context.selectedEdgeId] : [],
+      evidenceIds: [],
+      autoExecute: true,
+      requiresConfirmation: false,
+      blocked: false,
+    }),
+  };
+}
+
 function buildCapitalPathTurn(): AgentTurn {
   return {
     assistant: assistant(
@@ -341,7 +366,7 @@ function buildBlockedControlChangeTurn(context: AgentContext): AgentTurn {
       status: "review",
     },
     evidenceIds: ["S08-C1"],
-    conflict: "S08-C1 establishes only that Jiaxu Capital N10 holds an 18% equity stake in Lanxin Control N05; it does not establish control rights.",
+    conflict: "S08-C1 establishes only that Jiaxu Capital N10 holds an 18% equity stake in Lanxin Intelligent Controls N05; it does not establish control rights.",
     requiredEvidence: [
       "Voting-right arrangements",
       "Board seats or appointment and removal rights",
@@ -483,7 +508,10 @@ export function buildAgentTurn(
 ): AgentTurn {
   const normalized = normalizePrompt(prompt);
 
-  if (!normalized || includesAny(normalized, ["你好", "您好", "hello", "hi", "help", "what can you do", "帮助", "能做什么"])) {
+  if (
+    !normalized ||
+    ["你好", "您好", "hello", "hi", "help", "what can you do", "帮助", "能做什么"].includes(normalized)
+  ) {
     return buildWelcomeTurn();
   }
 
@@ -515,7 +543,7 @@ export function buildAgentTurn(
     normalized === "scenes" ||
     normalized === "investment committee" ||
     includesAny(normalized, ["scene", "scenes", "investment committee", "镜头", "投委会", "汇报"]) &&
-    includesAny(normalized, ["three", "3", "generate", "create", "prepare", "draft", "drafts", "三个", "3个", "三张", "生成", "草案", "整理"])
+    includesAny(normalized, ["three", "3", "generate", "create", "prepare", "draft", "drafts", "turn", "三个", "3个", "三张", "生成", "草案", "整理"])
   ) {
     return buildInvestmentScenesTurn(context);
   }
@@ -529,7 +557,14 @@ export function buildAgentTurn(
     return buildCapitalPathTurn();
   }
 
-  if (includesAny(normalized, ["risk", "evidence", "why", "explain", "centrality", "风险", "证据", "依据", "为什么", "解释", "中心性"])) {
+  if (
+    context.selectedEdgeId &&
+    includesAny(normalized, ["explain relationship", "explain edge", "why does it matter", "relationship evidence"])
+  ) {
+    return buildRelationshipEvidenceTurn(context);
+  }
+
+  if (includesAny(normalized, ["risk", "evidence", "centrality", "风险", "证据", "依据", "中心性"])) {
     return buildRiskEvidenceTurn();
   }
 
