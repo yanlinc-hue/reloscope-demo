@@ -13,8 +13,20 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "关系星图｜中文人物关系 3D 可视化",
-  description: "粘贴中文故事或剧本，生成可探索、可校对的三维人物关系图。",
+  title: "关系洞察 Studio｜Visual Intelligence",
+  description: "将文档、表格与数据源转化为可核验、可分析、可交付的高端关系可视化。",
+  openGraph: {
+    title: "关系洞察 Studio",
+    description: "每条关系，都能回到证据。",
+    type: "website",
+    images: [{ url: "/og.png", width: 1731, height: 909, alt: "关系洞察 Studio 演示封面" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "关系洞察 Studio",
+    description: "每条关系，都能回到证据。",
+    images: ["/og.png"],
+  },
 };
 
 export default function RootLayout({

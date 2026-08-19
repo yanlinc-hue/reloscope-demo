@@ -13,14 +13,15 @@ async function render() {
   );
 }
 
-test("server-renders the relationship-map demo", async () => {
+test("server-renders the visual-intelligence studio demo", async () => {
   const response = await render();
   assert.equal(response.status, 200);
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
 
   const html = await response.text();
-  assert.match(html, /关系星图/);
-  assert.match(html, /一句故事，展开整个人物宇宙/);
-  assert.match(html, /生成关系星图/);
+  assert.match(html, /关系洞察/);
+  assert.match(html, /东澜新能源产业生态研判/);
+  assert.match(html, /完全虚构数据/);
+  assert.match(html, /AI 视觉指令/);
   assert.doesNotMatch(html, /Your site is taking shape/);
 });

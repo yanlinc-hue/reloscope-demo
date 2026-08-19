@@ -1,456 +1,91 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import {
+  DEMO_EDGES,
+  DEMO_NODES,
+  DEMO_SCENES,
+  DEMO_SOURCES,
+  type DemoEdge,
+  type DemoNode,
+  type DemoScene,
+  type EdgeKind,
+  type NodeKind,
+} from "./demo-data";
 
-type NodeGroup = "amber" | "teal" | "coral" | "violet";
-type EdgeTone = "kin" | "ally" | "conflict" | "secret";
+type ViewMode = "2d" | "3d";
+type LayoutMode = DemoScene["layout"];
+type StudioNode = DemoNode & { pinned?: boolean };
+type AccessRole = "分析成员" | "外部顾问" | "管理层只读";
+type InspectorTab = "entity" | "evidence" | "analysis";
 
-type GraphNode = {
-  id: string;
-  label: string;
-  role: string;
-  group: NodeGroup;
-  x: number;
-  y: number;
-  z: number;
-  pinned?: boolean;
+type CanvasHandle = {
+  fit: () => void;
+  exportPng: () => void;
+  exportSvg: () => void;
 };
 
-type GraphEdge = {
-  id: string;
-  source: string;
-  target: string;
-  label: string;
-  tone: EdgeTone;
-  evidence: string;
-  confidence: number;
-  directed: boolean;
+const NODE_META: Record<NodeKind, { label: string; color: string; short: string }> = {
+  company: { label: "企业", color: "#69a7ff", short: "CO" },
+  capital: { label: "资本机构", color: "#b99cff", short: "CA" },
+  government: { label: "政府机构", color: "#f4bb5f", short: "GV" },
+  institution: { label: "专业机构", color: "#5bd8db", short: "IN" },
+  person: { label: "关键角色", color: "#ff9266", short: "PE" },
+  project: { label: "战略项目", color: "#59d7a0", short: "PR" },
 };
 
-type GraphData = { nodes: GraphNode[]; edges: GraphEdge[] };
-
-const EXAMPLES = {
-  mystery: {
-    label: "悬疑样例",
-    text: "林默是苏晚的哥哥，也是调查记者。苏晚和周野是多年好友。周野曾是顾辰的下属，却在一次调查中背叛了顾辰。顾辰把林默视为敌人。沈岚暗中保护苏晚，同时也是顾辰的合作伙伴。林默怀疑沈岚隐瞒了真相。",
-  },
-  family: {
-    label: "家族样例",
-    text: "程砚是程夏的哥哥。程夏和陆川是恋人。陆川是许宁的学生。许宁暗中帮助程砚。陆川欺骗了程夏。程砚怀疑陆川。程夏把许宁视为朋友。",
-  },
+const EDGE_META: Record<EdgeKind, { label: string; color: string }> = {
+  supply: { label: "供应", color: "#62a8ff" },
+  capital: { label: "投资 / 持股", color: "#b39af8" },
+  governance: { label: "任职 / 治理", color: "#ff956b" },
+  research: { label: "联合研发", color: "#51d2d9" },
+  certification: { label: "认证 / 验收", color: "#efcd61" },
+  support: { label: "政策支持", color: "#e7a84f" },
+  delivery: { label: "项目交付", color: "#58d694" },
+  circular: { label: "回收闭环", color: "#55cdbc" },
 };
 
-const INITIAL_NODES: GraphNode[] = [
-  { id: "lin", label: "林默", role: "调查记者", group: "amber", x: -42, y: -5, z: 12 },
-  { id: "su", label: "苏晚", role: "摄影师", group: "teal", x: 12, y: 18, z: 6 },
-  { id: "zhou", label: "周野", role: "线人", group: "teal", x: 55, y: -12, z: -8 },
-  { id: "gu", label: "顾辰", role: "集团负责人", group: "coral", x: 28, y: -55, z: 26 },
-  { id: "shen", label: "沈岚", role: "律师", group: "violet", x: -24, y: 50, z: -24 },
+const ALL_NODE_KINDS = Object.keys(NODE_META) as NodeKind[];
+const ALL_EDGE_KINDS = Object.keys(EDGE_META) as EdgeKind[];
+
+const AI_SUGGESTIONS = [
+  "识别最关键的三条单点依赖",
+  "穿透产业基金到两个项目的影响路径",
+  "只看待复核关系及其证据",
 ];
 
-const INITIAL_EDGES: GraphEdge[] = [
-  { id: "lin-su", source: "lin", target: "su", label: "兄妹", tone: "kin", evidence: "林默是苏晚的哥哥，也是调查记者。", confidence: 0.98, directed: false },
-  { id: "su-zhou", source: "su", target: "zhou", label: "好友", tone: "ally", evidence: "苏晚和周野是多年好友。", confidence: 0.96, directed: false },
-  { id: "zhou-gu", source: "zhou", target: "gu", label: "背叛", tone: "conflict", evidence: "周野曾是顾辰的下属，却在一次调查中背叛了顾辰。", confidence: 0.91, directed: true },
-  { id: "gu-lin", source: "gu", target: "lin", label: "敌对", tone: "conflict", evidence: "顾辰把林默视为敌人。", confidence: 0.97, directed: true },
-  { id: "shen-su", source: "shen", target: "su", label: "保护", tone: "secret", evidence: "沈岚暗中保护苏晚，同时也是顾辰的合作伙伴。", confidence: 0.92, directed: true },
-  { id: "shen-gu", source: "shen", target: "gu", label: "合作", tone: "ally", evidence: "沈岚暗中保护苏晚，同时也是顾辰的合作伙伴。", confidence: 0.89, directed: false },
-  { id: "lin-shen", source: "lin", target: "shen", label: "怀疑", tone: "secret", evidence: "林默怀疑沈岚隐瞒了真相。", confidence: 0.88, directed: true },
-];
-
-const EDGE_COLORS: Record<EdgeTone, string> = {
-  kin: "#f1c98f",
-  ally: "#63d8c6",
-  conflict: "#ff705f",
-  secret: "#a998f4",
-};
-
-const NODE_COLORS: Record<NodeGroup, string> = {
-  amber: "#f1c98f",
-  teal: "#63d8c6",
-  coral: "#ff705f",
-  violet: "#a998f4",
-};
-
-const RELATION_TONE: Record<string, EdgeTone> = {
-  哥哥: "kin", 妹妹: "kin", 姐姐: "kin", 弟弟: "kin", 父亲: "kin", 母亲: "kin", 丈夫: "kin", 妻子: "kin", 夫妻: "kin", 兄妹: "kin", 姐妹: "kin",
-  朋友: "ally", 好友: "ally", 同事: "ally", 恋人: "ally", 盟友: "ally", 合作伙伴: "ally", 合作: "ally", 帮助: "ally", 支持: "ally", 收养: "kin", 救助: "ally",
-  敌人: "conflict", 敌对: "conflict", 背叛: "conflict", 憎恨: "conflict", 欺骗: "conflict", 命令: "conflict",
-  保护: "secret", 怀疑: "secret", 追随: "secret", 调查: "secret", 监视: "secret", 喜欢: "secret", 爱上: "secret",
-};
-
-const NAME = "(?:(?:欧阳|司马|上官|诸葛|慕容|公孙)[\\u4e00-\\u9fff]{1,2}|[\\u4e00-\\u9fff]{2})";
-const RELATIONS = "哥哥|妹妹|姐姐|弟弟|父亲|母亲|丈夫|妻子|老师|学生|上司|下属|朋友|好友|恋人|盟友|敌人|合作伙伴";
-const VERBS = "帮助|保护|背叛|喜欢|爱上|憎恨|怀疑|追随|命令|欺骗|收养|支持|监视|救助";
-const OCCUPATIONS = ["调查记者", "集团负责人", "摄影师", "研究员", "负责人", "记者", "律师", "医生", "警察", "侦探", "老师", "学生", "导演", "演员", "作家", "画家", "秘书", "经理", "总裁", "线人"];
-
-function relationLabel(raw: string) {
-  const pairs: Record<string, string> = { 哥哥: "兄妹", 妹妹: "兄妹", 姐姐: "姐妹", 弟弟: "兄弟", 父亲: "父女/父子", 母亲: "母女/母子", 丈夫: "夫妻", 妻子: "夫妻", 敌人: "敌对", 合作伙伴: "合作", 救助: "救助" };
-  return pairs[raw] ?? raw;
+function cx(...values: Array<string | false | null | undefined>) {
+  return values.filter(Boolean).join(" ");
 }
 
-function hashName(name: string) {
-  return [...name].reduce((sum, char) => sum + (char.codePointAt(0) ?? 0), 0);
+function normalize(value: string) {
+  return value.normalize("NFKC").toLowerCase().trim();
 }
 
-function layoutNodes(names: string[], roles: Map<string, string>): GraphNode[] {
-  const groups: NodeGroup[] = ["amber", "teal", "coral", "violet"];
-  return names.slice(0, 20).map((label, index, list) => {
-    const spread = list.length === 1 ? 0 : index / (list.length - 1);
-    const y = (spread * 2 - 1) * 52;
-    const ring = Math.sqrt(Math.max(0, 1 - Math.pow(spread * 2 - 1, 2))) * 72;
-    const angle = index * 2.399963;
-    return {
-      id: `n-${hashName(label)}-${index}`,
-      label,
-      role: roles.get(label) ?? "人物",
-      group: groups[hashName(label) % groups.length],
-      x: Math.cos(angle) * ring,
-      y,
-      z: Math.sin(angle) * ring,
-    };
-  });
+function stableHash(value: string) {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(36);
 }
 
-function extractGraph(input: string): GraphData {
-  const sentences = input.split(/[。！？!?\n]+/).map((item) => item.trim()).filter(Boolean).slice(0, 80);
-  const relationDrafts: Array<{ source: string; target: string; raw: string; evidence: string; directed: boolean; confidence: number }> = [];
-  const people = new Set<string>();
-  const roles = new Map<string, string>();
-
-  const add = (source: string, target: string, raw: string, evidence: string, directed: boolean, confidence: number) => {
-    if (!source || !target || source === target) return;
-    const cleanSource = source.replace(/^(同时|后来|原来|其实)/, "");
-    const cleanTarget = target.replace(/(之间|二人|两人)$/, "");
-    if (cleanSource.length < 2 || cleanTarget.length < 2) return;
-    people.add(cleanSource);
-    people.add(cleanTarget);
-    const label = relationLabel(raw);
-    if (relationDrafts.some((item) => item.source === cleanSource && item.target === cleanTarget && relationLabel(item.raw) === label)) return;
-    relationDrafts.push({ source: cleanSource, target: cleanTarget, raw, evidence: `${evidence}。`, directed, confidence });
-  };
-
-  sentences.forEach((sentence) => {
-    const clauses = sentence.split(/[，,；;]/).map((item) => item.trim()).filter(Boolean);
-    let subject = "";
-    clauses.forEach((clause) => {
-      const leading = clause.match(new RegExp(`^(${NAME})(?=曾经|曾|暗中|公开|一直|正在|后来|是|和|与|把|将|${VERBS})`));
-      if (leading) subject = leading[1];
-
-      const possessive = new RegExp(`(${NAME})(?:曾经|曾)?是(${NAME})的(${RELATIONS})`, "g");
-      for (const match of clause.matchAll(possessive)) {
-        subject = match[1];
-        add(match[1], match[2], match[3], sentence, !["哥哥", "妹妹", "姐姐", "弟弟", "父亲", "母亲", "丈夫", "妻子", "朋友", "好友"].includes(match[3]), 0.96);
-      }
-
-      const paired = new RegExp(`(${NAME})(?:和|与)(${NAME})是(?:多年|曾经|一直)?(${RELATIONS}|夫妻|兄妹|姐妹)`, "g");
-      for (const match of clause.matchAll(paired)) {
-        subject = match[1];
-        add(match[1], match[2], match[3], sentence, false, 0.95);
-      }
-
-      const viewed = new RegExp(`(${NAME})(?:把|将)(${NAME})视为(${RELATIONS}|朋友)`);
-      const viewedMatch = clause.match(viewed);
-      if (viewedMatch) {
-        subject = viewedMatch[1];
-        add(viewedMatch[1], viewedMatch[2], viewedMatch[3], sentence, true, 0.94);
-      }
-
-      const explicitVerb = new RegExp(`^(${NAME})(?:曾经|曾|暗中|公开|一直|正在|后来|也)?(?:[^\\u4e00-\\u9fff]{0,2})?(${VERBS})(?:了)?(${NAME})`);
-      const explicitMatch = clause.match(explicitVerb);
-      if (explicitMatch) {
-        subject = explicitMatch[1];
-        add(explicitMatch[1], explicitMatch[3], explicitMatch[2], sentence, true, 0.9);
-      } else if (subject) {
-        const carriedVerb = clause.match(new RegExp(`(${VERBS})(?:了)?(${NAME})`));
-        if (carriedVerb) add(subject, carriedVerb[2], carriedVerb[1], sentence, true, 0.86);
-      }
-
-      if (subject) {
-        const carriedRelation = clause.match(new RegExp(`(?:也是|仍是|成为|是)(${NAME})的(${RELATIONS})`));
-        if (carriedRelation) add(subject, carriedRelation[1], carriedRelation[2], sentence, carriedRelation[2] !== "合作伙伴", 0.87);
-        const occupation = OCCUPATIONS.find((item) => new RegExp(`(?:也是|职业是|担任|是)${item}`).test(clause));
-        if (occupation) roles.set(subject, occupation);
-      }
-    });
-  });
-
-  const names = [...people];
-  const nodes = layoutNodes(names, roles);
-  const idByName = new Map(nodes.map((node) => [node.label, node.id]));
-  const edges = relationDrafts
-    .filter((item) => idByName.has(item.source) && idByName.has(item.target))
-    .slice(0, 32)
-    .map((item, index) => {
-      const label = relationLabel(item.raw);
-      return {
-        id: `e-${index}-${hashName(item.source + item.target + label)}`,
-        source: idByName.get(item.source)!,
-        target: idByName.get(item.target)!,
-        label,
-        tone: RELATION_TONE[item.raw] ?? RELATION_TONE[label] ?? "secret",
-        evidence: item.evidence,
-        confidence: item.confidence,
-        directed: item.directed,
-      };
-    });
-  return { nodes, edges };
-}
-
-function RelationshipCanvas({ nodes, edges, selectedId, resetKey, onSelect, onNodeMove }: {
-  nodes: GraphNode[];
-  edges: GraphEdge[];
-  selectedId: string | null;
-  resetKey: number;
-  onSelect: (id: string | null) => void;
-  onNodeMove: (id: string, position: Pick<GraphNode, "x" | "y" | "z">) => void;
-}) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const nodesRef = useRef(nodes);
-  const edgesRef = useRef(edges);
-  const selectedRef = useRef(selectedId);
-  const viewRef = useRef({ rx: -0.18, ry: 0.42, zoom: 1.75 });
-  const callbacksRef = useRef({ onSelect, onNodeMove });
-
-  useEffect(() => { nodesRef.current = nodes; }, [nodes]);
-  useEffect(() => { edgesRef.current = edges; }, [edges]);
-  useEffect(() => { selectedRef.current = selectedId; }, [selectedId]);
-  useEffect(() => { callbacksRef.current = { onSelect, onNodeMove }; }, [onSelect, onNodeMove]);
-  useEffect(() => { viewRef.current = { rx: -0.18, ry: 0.42, zoom: 1.75 }; }, [resetKey]);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    let frame = 0;
-    let width = 0;
-    let height = 0;
-    let projected: Array<{ id: string; x: number; y: number; r: number; depth: number; scale: number }> = [];
-    let hoverId: string | null = null;
-    let interaction: { kind: "view" | "node"; id?: string; px: number; py: number; moved: boolean } | null = null;
-
-    const resize = () => {
-      const box = canvas.getBoundingClientRect();
-      const ratio = Math.min(window.devicePixelRatio || 1, 2);
-      width = box.width;
-      height = box.height;
-      canvas.width = Math.round(width * ratio);
-      canvas.height = Math.round(height * ratio);
-      ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
-    };
-
-    const project = (node: GraphNode) => {
-      const { rx, ry, zoom } = viewRef.current;
-      const cy = Math.cos(ry);
-      const sy = Math.sin(ry);
-      const cx = Math.cos(rx);
-      const sx = Math.sin(rx);
-      const x1 = node.x * cy - node.z * sy;
-      const z1 = node.x * sy + node.z * cy;
-      const y1 = node.y * cx - z1 * sx;
-      const z2 = node.y * sx + z1 * cx;
-      const scale = (360 / (430 + z2)) * zoom;
-      return { x: width / 2 + x1 * scale, y: height / 2 + y1 * scale, depth: z2, scale, x1, y1 };
-    };
-
-    const moveOnCameraPlane = (node: GraphNode, dx: number, dy: number) => {
-      const point = project(node);
-      const { rx, ry } = viewRef.current;
-      const nextX1 = point.x1 + dx / point.scale;
-      const nextY1 = point.y1 + dy / point.scale;
-      const cx = Math.cos(rx);
-      const sx = Math.sin(rx);
-      const cy = Math.cos(ry);
-      const sy = Math.sin(ry);
-      const y = nextY1 * cx + point.depth * sx;
-      const z1 = -nextY1 * sx + point.depth * cx;
-      return { x: nextX1 * cy + z1 * sy, y, z: -nextX1 * sy + z1 * cy };
-    };
-
-    const drawArrow = (source: { x: number; y: number }, target: { x: number; y: number }, radius: number, color: string) => {
-      const angle = Math.atan2(target.y - source.y, target.x - source.x);
-      const tipX = target.x - Math.cos(angle) * Math.max(13, radius + 3);
-      const tipY = target.y - Math.sin(angle) * Math.max(13, radius + 3);
-      ctx.beginPath();
-      ctx.moveTo(tipX, tipY);
-      ctx.lineTo(tipX - Math.cos(angle - 0.55) * 7, tipY - Math.sin(angle - 0.55) * 7);
-      ctx.moveTo(tipX, tipY);
-      ctx.lineTo(tipX - Math.cos(angle + 0.55) * 7, tipY - Math.sin(angle + 0.55) * 7);
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 1.3;
-      ctx.stroke();
-    };
-
-    const draw = () => {
-      ctx.clearRect(0, 0, width, height);
-      const background = ctx.createRadialGradient(width * 0.54, height * 0.46, 20, width * 0.54, height * 0.46, width * 0.72);
-      background.addColorStop(0, "#131c22");
-      background.addColorStop(0.55, "#091016");
-      background.addColorStop(1, "#04080b");
-      ctx.fillStyle = background;
-      ctx.fillRect(0, 0, width, height);
-
-      for (let index = 0; index < 86; index += 1) {
-        const x = (index * 83.17) % Math.max(width, 1);
-        const y = (index * index * 19.31) % Math.max(height, 1);
-        const alpha = 0.1 + ((index * 17) % 30) / 100;
-        ctx.fillStyle = `rgba(220,235,238,${alpha})`;
-        const size = index % 7 === 0 ? 1.4 : 0.8;
-        ctx.fillRect(x, y, size, size);
-      }
-
-      const points = new Map(nodesRef.current.map((node) => [node.id, project(node)]));
-      edgesRef.current.forEach((edge) => {
-        const source = points.get(edge.source);
-        const target = points.get(edge.target);
-        if (!source || !target) return;
-        const active = selectedRef.current === edge.source || selectedRef.current === edge.target;
-        const color = EDGE_COLORS[edge.tone];
-        ctx.beginPath();
-        ctx.moveTo(source.x, source.y);
-        ctx.lineTo(target.x, target.y);
-        ctx.strokeStyle = `${color}${active ? "dd" : "76"}`;
-        ctx.lineWidth = active ? 2 : 1.15;
-        ctx.stroke();
-        if (edge.directed) drawArrow(source, target, 13 * target.scale, `${color}${active ? "ee" : "99"}`);
-        const mx = (source.x + target.x) / 2;
-        const my = (source.y + target.y) / 2;
-        ctx.font = "10px ui-monospace, SFMono-Regular, Menlo, monospace";
-        const textWidth = ctx.measureText(edge.label).width;
-        ctx.fillStyle = "rgba(4,8,11,.84)";
-        ctx.fillRect(mx - textWidth / 2 - 5, my - 8, textWidth + 10, 16);
-        ctx.fillStyle = color;
-        ctx.textAlign = "center";
-        ctx.fillText(edge.label, mx, my + 3);
-      });
-
-      projected = nodesRef.current.map((node) => {
-        const point = points.get(node.id)!;
-        return { id: node.id, x: point.x, y: point.y, r: 14 * point.scale, depth: point.depth, scale: point.scale };
-      }).sort((a, b) => a.depth - b.depth);
-
-      projected.forEach((point) => {
-        const node = nodesRef.current.find((item) => item.id === point.id)!;
-        const palette = NODE_COLORS[node.group];
-        const active = selectedRef.current === node.id || hoverId === node.id;
-        const glow = ctx.createRadialGradient(point.x, point.y, 1, point.x, point.y, point.r * (active ? 3.2 : 2.4));
-        glow.addColorStop(0, `${palette}${active ? "88" : "55"}`);
-        glow.addColorStop(1, `${palette}00`);
-        ctx.fillStyle = glow;
-        ctx.beginPath();
-        ctx.arc(point.x, point.y, point.r * (active ? 3.2 : 2.4), 0, Math.PI * 2);
-        ctx.fill();
-        if (active) {
-          ctx.strokeStyle = `${palette}aa`;
-          ctx.lineWidth = 1;
-          ctx.beginPath();
-          ctx.arc(point.x, point.y, Math.max(11, point.r + 6), 0, Math.PI * 2);
-          ctx.stroke();
-        }
-        ctx.fillStyle = palette;
-        ctx.beginPath();
-        ctx.arc(point.x, point.y, Math.max(7, point.r), 0, Math.PI * 2);
-        ctx.fill();
-        ctx.strokeStyle = "rgba(255,255,255,.72)";
-        ctx.stroke();
-        if (node.pinned) {
-          ctx.fillStyle = "#eaf5f2";
-          ctx.fillRect(point.x + point.r * 0.55, point.y - point.r * 0.8, 4, 4);
-        }
-        if (nodesRef.current.length <= 14 || active) {
-          ctx.fillStyle = "#eef5f3";
-          ctx.font = "600 13px system-ui, sans-serif";
-          ctx.textAlign = "center";
-          ctx.fillText(node.label, point.x, point.y + point.r + 19);
-          ctx.fillStyle = "rgba(214,225,225,.58)";
-          ctx.font = "10px system-ui, sans-serif";
-          ctx.fillText(node.role, point.x, point.y + point.r + 34);
-        }
-      });
-
-      if (nodesRef.current.length === 0) {
-        ctx.fillStyle = "rgba(214,225,225,.5)";
-        ctx.font = "13px system-ui, sans-serif";
-        ctx.textAlign = "center";
-        ctx.fillText("在左侧输入文本，生成第一张关系星图", width / 2, height / 2);
-      }
-      frame = requestAnimationFrame(draw);
-    };
-
-    const hitAt = (event: PointerEvent) => {
-      const box = canvas.getBoundingClientRect();
-      const x = event.clientX - box.left;
-      const y = event.clientY - box.top;
-      return [...projected].reverse().find((point) => Math.hypot(point.x - x, point.y - y) < Math.max(18, point.r * 1.45));
-    };
-
-    const pointerDown = (event: PointerEvent) => {
-      const hit = hitAt(event);
-      interaction = { kind: hit ? "node" : "view", id: hit?.id, px: event.clientX, py: event.clientY, moved: false };
-      if (hit) callbacksRef.current.onSelect(hit.id);
-      else callbacksRef.current.onSelect(null);
-      canvas.style.cursor = hit ? "move" : "grabbing";
-      canvas.setPointerCapture(event.pointerId);
-    };
-
-    const pointerMove = (event: PointerEvent) => {
-      if (!interaction) {
-        hoverId = hitAt(event)?.id ?? null;
-        canvas.style.cursor = hoverId ? "pointer" : "grab";
-        return;
-      }
-      const dx = event.clientX - interaction.px;
-      const dy = event.clientY - interaction.py;
-      if (Math.abs(dx) + Math.abs(dy) > 1) interaction.moved = true;
-      if (interaction.kind === "node" && interaction.id) {
-        const node = nodesRef.current.find((item) => item.id === interaction?.id);
-        if (node) {
-          const position = moveOnCameraPlane(node, dx, dy);
-          nodesRef.current = nodesRef.current.map((item) => item.id === node.id ? { ...item, ...position, pinned: true } : item);
-        }
-      } else {
-        viewRef.current.ry += dx * 0.006;
-        viewRef.current.rx = Math.max(-1.05, Math.min(1.05, viewRef.current.rx + dy * 0.006));
-      }
-      interaction.px = event.clientX;
-      interaction.py = event.clientY;
-    };
-
-    const pointerUp = () => {
-      if (interaction?.kind === "node" && interaction.id && interaction.moved) {
-        const node = nodesRef.current.find((item) => item.id === interaction?.id);
-        if (node) callbacksRef.current.onNodeMove(node.id, { x: node.x, y: node.y, z: node.z });
-      }
-      interaction = null;
-      canvas.style.cursor = hoverId ? "pointer" : "grab";
-    };
-
-    const wheel = (event: WheelEvent) => {
-      event.preventDefault();
-      viewRef.current.zoom = Math.max(0.78, Math.min(3.25, viewRef.current.zoom * (event.deltaY > 0 ? 0.92 : 1.08)));
-    };
-
-    resize();
-    draw();
-    window.addEventListener("resize", resize);
-    canvas.addEventListener("pointerdown", pointerDown);
-    canvas.addEventListener("pointermove", pointerMove);
-    canvas.addEventListener("pointerup", pointerUp);
-    canvas.addEventListener("pointercancel", pointerUp);
-    canvas.addEventListener("wheel", wheel, { passive: false });
-    return () => {
-      cancelAnimationFrame(frame);
-      window.removeEventListener("resize", resize);
-      canvas.removeEventListener("pointerdown", pointerDown);
-      canvas.removeEventListener("pointermove", pointerMove);
-      canvas.removeEventListener("pointerup", pointerUp);
-      canvas.removeEventListener("pointercancel", pointerUp);
-      canvas.removeEventListener("wheel", wheel);
-    };
-  }, []);
-
-  return <canvas id="relationship-canvas" ref={canvasRef} className="relationship-canvas" aria-label="可旋转、缩放并拖动人物节点的三维关系图" />;
+function escapeXml(value: string) {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&apos;");
 }
 
 function downloadBlob(blob: Blob, filename: string) {
@@ -459,144 +94,1289 @@ function downloadBlob(blob: Blob, filename: string) {
   anchor.href = url;
   anchor.download = filename;
   anchor.click();
-  URL.revokeObjectURL(url);
+  window.setTimeout(() => URL.revokeObjectURL(url), 1200);
 }
 
-export default function Home() {
-  const [text, setText] = useState(EXAMPLES.mystery.text);
-  const [mode, setMode] = useState<"小说" | "剧本">("小说");
-  const [nodes, setNodes] = useState<GraphNode[]>(INITIAL_NODES);
-  const [edges, setEdges] = useState<GraphEdge[]>(INITIAL_EDGES);
-  const [selectedId, setSelectedId] = useState<string | null>("lin");
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [notice, setNotice] = useState("示例已就绪 · 点击人物查看原文证据");
-  const [resetKey, setResetKey] = useState(0);
-  const selected = nodes.find((node) => node.id === selectedId);
-  const selectedEdges = selectedId ? edges.filter((edge) => edge.source === selectedId || edge.target === selectedId) : [];
+function edgeDistance(
+  px: number,
+  py: number,
+  ax: number,
+  ay: number,
+  bx: number,
+  by: number,
+) {
+  const dx = bx - ax;
+  const dy = by - ay;
+  const length = dx * dx + dy * dy;
+  if (!length) return Math.hypot(px - ax, py - ay);
+  const amount = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / length));
+  return Math.hypot(px - (ax + amount * dx), py - (ay + amount * dy));
+}
 
-  const moveNode = useCallback((id: string, position: Pick<GraphNode, "x" | "y" | "z">) => {
-    setNodes((current) => current.map((node) => node.id === id ? { ...node, ...position, pinned: true } : node));
-    setNotice("已固定人物位置 · 重新生成可恢复自动布局");
-  }, []);
+function applyLayout(
+  nodes: StudioNode[],
+  edges: DemoEdge[],
+  mode: LayoutMode,
+  rootId?: string,
+): StudioNode[] {
+  const sorted = [...nodes].sort((a, b) => a.id.localeCompare(b.id));
+  const movable = sorted.filter((node) => !node.pinned);
+  if (mode === "force") {
+    return nodes.map((node) => {
+      if (node.pinned) return node;
+      const index = movable.findIndex((item) => item.id === node.id);
+      const angle = index * 2.399963;
+      const radius = 9 + Math.sqrt(index + 1) * 8.3;
+      const originalWeight = node.id === "N01" ? 0 : 0.32;
+      return {
+        ...node,
+        x: Math.cos(angle) * radius + node.x * originalWeight,
+        y: Math.sin(angle) * radius + node.y * originalWeight,
+        z: ((index % 5) - 2) * 4.3 + node.z * 0.2,
+      };
+    });
+  }
 
-  const generate = () => {
-    if (!text.trim()) {
-      setNotice("请先输入一段人物关系文字");
-      return;
-    }
-    setIsGenerating(true);
-    setNotice("正在识别人名、关系与原文证据…");
-    window.setTimeout(() => {
-      const result = extractGraph(text);
-      if (result.edges.length === 0) {
-        setNotice("还没识别到明确关系 · 试试“程砚是程夏的哥哥”");
-      } else {
-        setNodes(result.nodes);
-        setEdges(result.edges);
-        setSelectedId(result.nodes[0]?.id ?? null);
-        setResetKey((value) => value + 1);
-        setNotice(`已从 ${text.length} 字中识别 ${result.nodes.length} 人、${result.edges.length} 条关系`);
+  const root = rootId && nodes.some((node) => node.id === rootId) ? rootId : "N01";
+  const adjacency = new Map<string, string[]>();
+  nodes.forEach((node) => adjacency.set(node.id, []));
+  edges.forEach((edge) => {
+    adjacency.get(edge.source)?.push(edge.target);
+    adjacency.get(edge.target)?.push(edge.source);
+  });
+  const distance = new Map<string, number>([[root, 0]]);
+  const queue = [root];
+  while (queue.length) {
+    const current = queue.shift()!;
+    const nextDistance = (distance.get(current) ?? 0) + 1;
+    (adjacency.get(current) ?? []).sort().forEach((next) => {
+      if (!distance.has(next)) {
+        distance.set(next, nextDistance);
+        queue.push(next);
       }
-      setIsGenerating(false);
-    }, 620);
-  };
+    });
+  }
+  sorted.forEach((node) => {
+    if (!distance.has(node.id)) distance.set(node.id, 5);
+  });
 
-  const loadExample = (key: keyof typeof EXAMPLES) => {
-    setText(EXAMPLES[key].text);
-    setNotice(`已载入${EXAMPLES[key].label} · 点击生成查看结果`);
-  };
+  if (mode === "radial") {
+    const rings = new Map<number, StudioNode[]>();
+    sorted.forEach((node) => {
+      const level = distance.get(node.id) ?? 5;
+      rings.set(level, [...(rings.get(level) ?? []), node]);
+    });
+    const positions = new Map<string, Pick<DemoNode, "x" | "y" | "z">>();
+    rings.forEach((ringNodes, level) => {
+      ringNodes.forEach((node, index) => {
+        if (level === 0) {
+          positions.set(node.id, { x: 0, y: 0, z: 0 });
+          return;
+        }
+        const angle = (index / ringNodes.length) * Math.PI * 2 - Math.PI / 2;
+        const radius = 18 + level * 19;
+        positions.set(node.id, {
+          x: Math.cos(angle) * radius,
+          y: Math.sin(angle) * radius,
+          z: ((index % 3) - 1) * 5,
+        });
+      });
+    });
+    return nodes.map((node) => node.pinned ? node : { ...node, ...positions.get(node.id)! });
+  }
 
-  const exportJson = () => {
-    downloadBlob(new Blob([JSON.stringify({ sourceText: text, nodes, relations: edges }, null, 2)], { type: "application/json" }), "relationship-map.json");
-    setNotice("关系数据已导出为 JSON");
-  };
+  const columns = new Map<number, StudioNode[]>();
+  sorted.forEach((node) => {
+    const level = Math.min(distance.get(node.id) ?? 5, 4);
+    columns.set(level, [...(columns.get(level) ?? []), node]);
+  });
+  const positions = new Map<string, Pick<DemoNode, "x" | "y" | "z">>();
+  columns.forEach((columnNodes, level) => {
+    columnNodes.forEach((node, index) => {
+      positions.set(node.id, {
+        x: (level - 2) * 32,
+        y: (index - (columnNodes.length - 1) / 2) * 18,
+        z: ((index % 4) - 1.5) * 3,
+      });
+    });
+  });
+  return nodes.map((node) => node.pinned ? node : { ...node, ...positions.get(node.id)! });
+}
 
-  const exportPng = () => {
-    const canvas = document.querySelector<HTMLCanvasElement>("#relationship-canvas");
+function parseCsv(text: string) {
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let cell = "";
+  let quoted = false;
+  const input = text.replace(/^\uFEFF/, "");
+  for (let index = 0; index < input.length; index += 1) {
+    const char = input[index];
+    if (quoted) {
+      if (char === '"' && input[index + 1] === '"') {
+        cell += '"';
+        index += 1;
+      } else if (char === '"') {
+        quoted = false;
+      } else {
+        cell += char;
+      }
+    } else if (char === '"') {
+      quoted = true;
+    } else if (char === ",") {
+      row.push(cell);
+      cell = "";
+    } else if (char === "\n") {
+      row.push(cell.replace(/\r$/, ""));
+      rows.push(row);
+      row = [];
+      cell = "";
+    } else {
+      cell += char;
+    }
+  }
+  row.push(cell.replace(/\r$/, ""));
+  if (row.some(Boolean)) rows.push(row);
+  return rows;
+}
+
+function inferEdgeKind(value: string): EdgeKind {
+  if (/投资|持股|基金/.test(value)) return "capital";
+  if (/任职|治理|董事|管理/.test(value)) return "governance";
+  if (/研发|专利|联合开发/.test(value)) return "research";
+  if (/认证|验收|检测/.test(value)) return "certification";
+  if (/政策|专项|支持/.test(value)) return "support";
+  if (/交付|项目|配套/.test(value)) return "delivery";
+  if (/回收|再生|循环/.test(value)) return "circular";
+  return "supply";
+}
+
+function parseImportedGraph(filename: string, text: string) {
+  if (filename.toLowerCase().endsWith(".json")) {
+    const payload = JSON.parse(text) as Record<string, unknown>;
+    if (!Array.isArray(payload.nodes)) throw new Error("JSON 缺少 nodes 数组");
+    const rawEdges = Array.isArray(payload.edges)
+      ? payload.edges
+      : Array.isArray(payload.relations)
+        ? payload.relations
+        : null;
+    if (!rawEdges) throw new Error("JSON 缺少 edges 或 relations 数组");
+    const nodes: StudioNode[] = payload.nodes.map((raw, index) => {
+      const item = raw as Record<string, unknown>;
+      const name = String(item.name ?? item.label ?? "").trim();
+      if (!name) throw new Error("第 " + (index + 1) + " 个节点缺少 name/label");
+      const kind = ALL_NODE_KINDS.includes(item.kind as NodeKind) ? item.kind as NodeKind : "company";
+      return {
+        id: String(item.id ?? "N-" + stableHash(name)),
+        name,
+        kind,
+        subtitle: String(item.subtitle ?? item.role ?? "导入实体"),
+        x: Number.isFinite(Number(item.x)) ? Number(item.x) : Math.cos(index * 2.4) * (18 + index * 1.5),
+        y: Number.isFinite(Number(item.y)) ? Number(item.y) : Math.sin(index * 2.4) * (18 + index * 1.5),
+        z: Number.isFinite(Number(item.z)) ? Number(item.z) : (index % 5) * 2,
+        summary: String(item.summary ?? "由本地文件导入的实体。"),
+        metric: String(item.metric ?? "LOCAL IMPORT"),
+        risk: ["high", "medium", "low"].includes(String(item.risk)) ? item.risk as DemoNode["risk"] : "medium",
+        status: ["verified", "review", "planned"].includes(String(item.status)) ? item.status as DemoNode["status"] : "review",
+        sources: Array.isArray(item.sources) ? item.sources.map(String) : ["LOCAL"],
+      };
+    });
+    const ids = new Set(nodes.map((node) => node.id));
+    const edges: DemoEdge[] = rawEdges.map((raw, index) => {
+      const item = raw as Record<string, unknown>;
+      const source = String(item.source ?? "");
+      const target = String(item.target ?? "");
+      if (!ids.has(source) || !ids.has(target)) {
+        throw new Error("第 " + (index + 1) + " 条关系指向不存在的节点");
+      }
+      const label = String(item.label ?? item.relation ?? "关联");
+      const kind = ALL_EDGE_KINDS.includes(item.kind as EdgeKind)
+        ? item.kind as EdgeKind
+        : inferEdgeKind(label);
+      return {
+        id: String(item.id ?? "E-" + stableHash(source + target + label)),
+        source,
+        target,
+        kind,
+        label,
+        weight: Math.max(0.1, Math.min(1, Number(item.weight ?? 0.6))),
+        status: item.status === "verified" ? "verified" : "review",
+        evidenceId: String(item.evidenceId ?? "LOCAL-" + (index + 1)),
+        evidence: String(item.evidence ?? "导入文件未提供证据片段。"),
+        sourceTitle: String(item.sourceTitle ?? filename),
+        location: String(item.location ?? "本地导入"),
+        confidence: Math.max(0, Math.min(1, Number(item.confidence ?? 0.7))),
+        directed: item.directed !== false && item.directed !== "false",
+      };
+    });
+    return { nodes, edges };
+  }
+
+  const table = parseCsv(text);
+  if (table.length < 2) throw new Error("CSV 至少需要表头和一条关系");
+  const headers = table[0].map((value) => normalize(value));
+  const column = (row: string[], name: string) => row[headers.indexOf(name)] ?? "";
+  if (!headers.includes("source_label") || !headers.includes("target_label")) {
+    throw new Error("CSV 需要 source_label 与 target_label 字段");
+  }
+  const nodeById = new Map<string, StudioNode>();
+  const edges: DemoEdge[] = [];
+  table.slice(1).filter((row) => row.some(Boolean)).forEach((row, index) => {
+    const sourceName = column(row, "source_label").trim();
+    const targetName = column(row, "target_label").trim();
+    if (!sourceName || !targetName) throw new Error("CSV 第 " + (index + 2) + " 行缺少实体名称");
+    const source = column(row, "source_id").trim() || "N-" + stableHash(sourceName);
+    const target = column(row, "target_id").trim() || "N-" + stableHash(targetName);
+    [source, target].forEach((id, nodeIndex) => {
+      if (!nodeById.has(id)) {
+        const name = nodeIndex === 0 ? sourceName : targetName;
+        const count = nodeById.size;
+        nodeById.set(id, {
+          id,
+          name,
+          kind: "company",
+          subtitle: "CSV 导入实体",
+          x: Math.cos(count * 2.4) * (18 + count * 2),
+          y: Math.sin(count * 2.4) * (18 + count * 2),
+          z: ((count % 5) - 2) * 3,
+          summary: "由本地 CSV 关系表生成。",
+          metric: "LOCAL IMPORT",
+          risk: "medium",
+          status: "review",
+          sources: ["LOCAL"],
+        });
+      }
+    });
+    const label = column(row, "relation").trim() || "关联";
+    edges.push({
+      id: "E-" + stableHash(source + target + label + index),
+      source,
+      target,
+      kind: inferEdgeKind(label),
+      label,
+      weight: 0.62,
+      status: "review",
+      evidenceId: "LOCAL-" + (index + 1),
+      evidence: column(row, "evidence") || "导入文件未提供证据片段。",
+      sourceTitle: filename,
+      location: "CSV 第 " + (index + 2) + " 行",
+      confidence: Math.max(0, Math.min(1, Number(column(row, "confidence") || 0.7))),
+      directed: column(row, "directed").toLowerCase() !== "false",
+    });
+  });
+  return { nodes: [...nodeById.values()], edges };
+}
+
+type CanvasProps = {
+  nodes: StudioNode[];
+  edges: DemoEdge[];
+  mode: ViewMode;
+  selectedId: string | null;
+  selectedEdgeId: string | null;
+  searchHits: Set<string>;
+  resetKey: number;
+  onSelectNode: (id: string) => void;
+  onSelectEdge: (id: string) => void;
+  onMoveNode: (id: string, position: Pick<DemoNode, "x" | "y" | "z">) => void;
+};
+
+const RelationshipCanvas = forwardRef<CanvasHandle, CanvasProps>(function RelationshipCanvas(
+  {
+    nodes,
+    edges,
+    mode,
+    selectedId,
+    selectedEdgeId,
+    searchHits,
+    resetKey,
+    onSelectNode,
+    onSelectEdge,
+    onMoveNode,
+  },
+  ref,
+) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const viewRef = useRef({
+    "2d": { zoom: 1, panX: 0, panY: 0, rx: 0, ry: 0 },
+    "3d": { zoom: 1, panX: 0, panY: 0, rx: -0.2, ry: 0.38 },
+  });
+  const modeRef = useRef<ViewMode>(mode);
+  const drawRef = useRef<() => void>(() => undefined);
+  const projectionRef = useRef(new Map<string, { x: number; y: number; r: number; depth: number }>());
+  const dimensionsRef = useRef({ width: 1200, height: 760 });
+  const dataRef = useRef({ nodes, edges });
+
+  useEffect(() => {
+    modeRef.current = mode;
+    drawRef.current();
+  }, [mode]);
+
+  useEffect(() => {
+    dataRef.current = { nodes, edges };
+  }, [nodes, edges]);
+
+  useEffect(() => {
+    viewRef.current[modeRef.current] = modeRef.current === "2d"
+      ? { zoom: 1, panX: 0, panY: 0, rx: 0, ry: 0 }
+      : { zoom: 1, panX: 0, panY: 0, rx: -0.2, ry: 0.38 };
+    drawRef.current();
+  }, [resetKey]);
+
+  useImperativeHandle(ref, () => ({
+    fit() {
+      viewRef.current[modeRef.current] = modeRef.current === "2d"
+        ? { zoom: 1, panX: 0, panY: 0, rx: 0, ry: 0 }
+        : { zoom: 1, panX: 0, panY: 0, rx: -0.2, ry: 0.38 };
+      drawRef.current();
+    },
+    exportPng() {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      canvas.toBlob((blob) => {
+        if (blob) downloadBlob(blob, "donglan-relationship-scene.png");
+      }, "image/png");
+    },
+    exportSvg() {
+      const { width, height } = dimensionsRef.current;
+      const points = projectionRef.current;
+      const current = dataRef.current;
+      const lines = current.edges.map((edge) => {
+        const source = points.get(edge.source);
+        const target = points.get(edge.target);
+        if (!source || !target) return "";
+        const color = EDGE_META[edge.kind]?.color ?? "#72808c";
+        const dash = edge.status === "review" ? ' stroke-dasharray="6 5"' : "";
+        return '<line x1="' + source.x.toFixed(1) + '" y1="' + source.y.toFixed(1) + '" x2="' + target.x.toFixed(1) + '" y2="' + target.y.toFixed(1) + '" stroke="' + color + '" stroke-opacity=".65" stroke-width="' + (1 + edge.weight * 2).toFixed(1) + '"' + dash + ' />';
+      }).join("");
+      const circles = current.nodes.map((node) => {
+        const point = points.get(node.id);
+        if (!point) return "";
+        const color = NODE_META[node.kind]?.color ?? "#79a7c8";
+        return '<circle cx="' + point.x.toFixed(1) + '" cy="' + point.y.toFixed(1) + '" r="' + Math.max(5, point.r).toFixed(1) + '" fill="' + color + '" stroke="#e8f0ee" stroke-opacity=".7" /><text x="' + point.x.toFixed(1) + '" y="' + (point.y + point.r + 16).toFixed(1) + '" fill="#e8f0ee" text-anchor="middle" font-family="Arial, PingFang SC, sans-serif" font-size="11">' + escapeXml(node.name) + "</text>";
+      }).join("");
+      const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + width + '" height="' + height + '" viewBox="0 0 ' + width + " " + height + '"><rect width="100%" height="100%" fill="#05080c"/>' + lines + circles + '<text x="24" y="' + (height - 24) + '" fill="#5f6c72" font-family="monospace" font-size="10">SYNTHETIC DATA · DEMO ONLY</text></svg>';
+      downloadBlob(new Blob([svg], { type: "image/svg+xml" }), "donglan-relationship-scene.svg");
+    },
+  }), []);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
     if (!canvas) return;
-    canvas.toBlob((blob) => {
-      if (blob) downloadBlob(blob, "relationship-map.png");
-    }, "image/png");
-    setNotice("高清关系图已导出为 PNG");
-  };
+    const context = canvas.getContext("2d");
+    if (!context) return;
+    let width = 0;
+    let height = 0;
+    let animation = 0;
+    let hoverId: string | null = null;
+    let hoverEdgeId: string | null = null;
+    let interaction: {
+      kind: "node" | "view";
+      id?: string;
+      px: number;
+      py: number;
+      shift: boolean;
+      moved: boolean;
+    } | null = null;
+    let workingNodes = nodes.map((node) => ({ ...node }));
+    const degree = new Map<string, number>();
+    edges.forEach((edge) => {
+      degree.set(edge.source, (degree.get(edge.source) ?? 0) + 1);
+      degree.set(edge.target, (degree.get(edge.target) ?? 0) + 1);
+    });
+
+    const resize = () => {
+      const box = canvas.getBoundingClientRect();
+      width = Math.max(1, box.width);
+      height = Math.max(1, box.height);
+      const ratio = Math.min(window.devicePixelRatio || 1, 2);
+      canvas.width = Math.round(width * ratio);
+      canvas.height = Math.round(height * ratio);
+      context.setTransform(ratio, 0, 0, ratio, 0, 0);
+      dimensionsRef.current = { width, height };
+      invalidate();
+    };
+
+    const project = (node: StudioNode) => {
+      const view = viewRef.current[mode];
+      const worldScale = Math.max(3.25, Math.min(6.2, Math.min(width, height) / 118)) * view.zoom;
+      if (mode === "2d") {
+        return {
+          x: width / 2 + view.panX + node.x * worldScale,
+          y: height / 2 + view.panY + node.y * worldScale,
+          depth: 0,
+          scale: view.zoom,
+        };
+      }
+      const cy = Math.cos(view.ry);
+      const sy = Math.sin(view.ry);
+      const cx = Math.cos(view.rx);
+      const sx = Math.sin(view.rx);
+      const x1 = node.x * cy - node.z * sy;
+      const z1 = node.x * sy + node.z * cy;
+      const y1 = node.y * cx - z1 * sx;
+      const z2 = node.y * sx + z1 * cx;
+      const perspective = 390 / Math.max(180, 390 + z2 * 2.1);
+      return {
+        x: width / 2 + view.panX + x1 * worldScale * perspective,
+        y: height / 2 + view.panY + y1 * worldScale * perspective,
+        depth: z2,
+        scale: perspective * view.zoom,
+      };
+    };
+
+    const pathNode = (node: StudioNode, x: number, y: number, radius: number) => {
+      context.beginPath();
+      if (node.kind === "capital") {
+        context.moveTo(x, y - radius);
+        context.lineTo(x + radius, y);
+        context.lineTo(x, y + radius);
+        context.lineTo(x - radius, y);
+        context.closePath();
+      } else if (node.kind === "institution") {
+        context.rect(x - radius * 0.8, y - radius * 0.8, radius * 1.6, radius * 1.6);
+      } else if (node.kind === "government") {
+        for (let index = 0; index < 6; index += 1) {
+          const angle = index * Math.PI / 3 - Math.PI / 2;
+          const px = x + Math.cos(angle) * radius;
+          const py = y + Math.sin(angle) * radius;
+          if (index === 0) context.moveTo(px, py);
+          else context.lineTo(px, py);
+        }
+        context.closePath();
+      } else if (node.kind === "project") {
+        context.roundRect(x - radius * 1.05, y - radius * 0.72, radius * 2.1, radius * 1.44, 4);
+      } else {
+        context.arc(x, y, radius, 0, Math.PI * 2);
+      }
+    };
+
+    const drawArrow = (
+      source: { x: number; y: number },
+      target: { x: number; y: number; r: number },
+      color: string,
+    ) => {
+      const angle = Math.atan2(target.y - source.y, target.x - source.x);
+      const tipX = target.x - Math.cos(angle) * (target.r + 4);
+      const tipY = target.y - Math.sin(angle) * (target.r + 4);
+      context.beginPath();
+      context.moveTo(tipX, tipY);
+      context.lineTo(tipX - Math.cos(angle - 0.55) * 6, tipY - Math.sin(angle - 0.55) * 6);
+      context.lineTo(tipX - Math.cos(angle + 0.55) * 6, tipY - Math.sin(angle + 0.55) * 6);
+      context.closePath();
+      context.fillStyle = color;
+      context.fill();
+    };
+
+    const draw = () => {
+      animation = 0;
+      context.clearRect(0, 0, width, height);
+      const gradient = context.createRadialGradient(width * 0.52, height * 0.46, 10, width * 0.52, height * 0.46, Math.max(width, height) * 0.72);
+      gradient.addColorStop(0, mode === "3d" ? "#101b25" : "#0c151d");
+      gradient.addColorStop(0.58, "#070c12");
+      gradient.addColorStop(1, "#030609");
+      context.fillStyle = gradient;
+      context.fillRect(0, 0, width, height);
+
+      if (mode === "2d") {
+        context.strokeStyle = "rgba(141,174,191,.055)";
+        context.lineWidth = 1;
+        const size = 34;
+        for (let x = (viewRef.current["2d"].panX % size); x < width; x += size) {
+          context.beginPath();
+          context.moveTo(x, 0);
+          context.lineTo(x, height);
+          context.stroke();
+        }
+        for (let y = (viewRef.current["2d"].panY % size); y < height; y += size) {
+          context.beginPath();
+          context.moveTo(0, y);
+          context.lineTo(width, y);
+          context.stroke();
+        }
+      } else {
+        for (let index = 0; index < 95; index += 1) {
+          const x = (index * 83.17) % width;
+          const y = (index * index * 19.31) % height;
+          context.fillStyle = "rgba(207,230,236," + (0.08 + (index % 7) * 0.018) + ")";
+          context.fillRect(x, y, index % 9 === 0 ? 1.2 : 0.65, index % 9 === 0 ? 1.2 : 0.65);
+        }
+      }
+
+      const points = new Map<string, { x: number; y: number; r: number; depth: number; scale: number }>();
+      workingNodes.forEach((node) => {
+        const point = project(node);
+        const radius = Math.max(7, Math.min(17, 7.2 + Math.sqrt(degree.get(node.id) ?? 1) * 1.8)) * Math.max(0.72, point.scale);
+        points.set(node.id, { ...point, r: radius });
+      });
+      projectionRef.current = points;
+      dataRef.current = { nodes: workingNodes, edges };
+
+      const drawnEdges = edges
+        .map((edge) => ({ edge, source: points.get(edge.source), target: points.get(edge.target) }))
+        .filter((item): item is { edge: DemoEdge; source: NonNullable<typeof item.source>; target: NonNullable<typeof item.target> } => Boolean(item.source && item.target))
+        .sort((a, b) => ((a.source.depth + a.target.depth) / 2) - ((b.source.depth + b.target.depth) / 2));
+
+      drawnEdges.forEach(({ edge, source, target }) => {
+        const active = edge.id === selectedEdgeId || edge.id === hoverEdgeId || selectedId === edge.source || selectedId === edge.target;
+        const color = EDGE_META[edge.kind].color;
+        context.save();
+        context.beginPath();
+        context.moveTo(source.x, source.y);
+        context.lineTo(target.x, target.y);
+        context.strokeStyle = color;
+        context.globalAlpha = active ? 0.92 : 0.34;
+        context.lineWidth = (active ? 1.6 : 0.7) + edge.weight * 1.7;
+        if (edge.status === "review") context.setLineDash([7, 6]);
+        context.stroke();
+        context.restore();
+        if (edge.directed) drawArrow(source, target, color + (active ? "dd" : "77"));
+
+        if (active) {
+          const mx = (source.x + target.x) / 2;
+          const my = (source.y + target.y) / 2;
+          context.font = "10px ui-monospace, SFMono-Regular, Menlo, monospace";
+          const labelWidth = context.measureText(edge.label).width;
+          context.fillStyle = "rgba(4,8,12,.88)";
+          context.fillRect(mx - labelWidth / 2 - 7, my - 9, labelWidth + 14, 18);
+          context.strokeStyle = color + "66";
+          context.strokeRect(mx - labelWidth / 2 - 7, my - 9, labelWidth + 14, 18);
+          context.fillStyle = color;
+          context.textAlign = "center";
+          context.fillText(edge.label, mx, my + 3);
+        }
+      });
+
+      [...workingNodes]
+        .sort((a, b) => (points.get(a.id)?.depth ?? 0) - (points.get(b.id)?.depth ?? 0))
+        .forEach((node) => {
+          const point = points.get(node.id)!;
+          const color = NODE_META[node.kind].color;
+          const selected = selectedId === node.id;
+          const hovered = hoverId === node.id;
+          const found = searchHits.size === 0 || searchHits.has(node.id);
+          const active = selected || hovered;
+          context.save();
+          context.globalAlpha = found ? 1 : 0.16;
+          const glow = context.createRadialGradient(point.x, point.y, 1, point.x, point.y, point.r * (active ? 3.5 : 2.2));
+          glow.addColorStop(0, color + (active ? "78" : "3b"));
+          glow.addColorStop(1, color + "00");
+          context.fillStyle = glow;
+          context.beginPath();
+          context.arc(point.x, point.y, point.r * (active ? 3.5 : 2.2), 0, Math.PI * 2);
+          context.fill();
+
+          if (active) {
+            context.strokeStyle = color + "aa";
+            context.lineWidth = 1;
+            context.beginPath();
+            context.arc(point.x, point.y, point.r + 6, 0, Math.PI * 2);
+            context.stroke();
+          }
+          pathNode(node, point.x, point.y, point.r);
+          context.fillStyle = color;
+          context.fill();
+          context.strokeStyle = "rgba(246,251,250,.78)";
+          context.lineWidth = selected ? 1.6 : 0.8;
+          context.stroke();
+
+          if (node.status === "review" || node.status === "planned") {
+            context.fillStyle = node.status === "review" ? "#f4c361" : "#8d9aa3";
+            context.beginPath();
+            context.arc(point.x + point.r * 0.72, point.y - point.r * 0.72, 3.2, 0, Math.PI * 2);
+            context.fill();
+          }
+          if (node.pinned) {
+            context.fillStyle = "#f5f8f7";
+            context.fillRect(point.x - 1.5, point.y - point.r - 6, 3, 4);
+          }
+
+          if (workingNodes.length <= 28 || active || searchHits.has(node.id)) {
+            context.fillStyle = "#eaf1ef";
+            context.font = (selected ? "650 " : "550 ") + (active ? "12px" : "11px") + " system-ui, PingFang SC, sans-serif";
+            context.textAlign = "center";
+            context.fillText(node.name, point.x, point.y + point.r + 17);
+            if (active) {
+              context.fillStyle = "rgba(190,205,208,.58)";
+              context.font = "8px ui-monospace, SFMono-Regular, Menlo, monospace";
+              context.fillText(NODE_META[node.kind].label.toUpperCase() + " · " + node.id, point.x, point.y + point.r + 31);
+            }
+          }
+          context.restore();
+        });
+
+      context.fillStyle = "rgba(127,144,151,.38)";
+      context.font = "8px ui-monospace, SFMono-Regular, Menlo, monospace";
+      context.textAlign = "left";
+      context.fillText("SYNTHETIC DATA · DEMO ONLY", 18, height - 18);
+    };
+
+    const invalidate = () => {
+      if (!animation) animation = requestAnimationFrame(draw);
+    };
+    drawRef.current = invalidate;
+
+    const localPoint = (event: PointerEvent) => {
+      const box = canvas.getBoundingClientRect();
+      return { x: event.clientX - box.left, y: event.clientY - box.top };
+    };
+
+    const hitNode = (event: PointerEvent) => {
+      const point = localPoint(event);
+      return [...projectionRef.current.entries()]
+        .sort((a, b) => b[1].depth - a[1].depth)
+        .find(([, projected]) => Math.hypot(projected.x - point.x, projected.y - point.y) <= Math.max(14, projected.r + 4));
+    };
+
+    const hitEdge = (event: PointerEvent) => {
+      const point = localPoint(event);
+      return edges.find((edge) => {
+        const source = projectionRef.current.get(edge.source);
+        const target = projectionRef.current.get(edge.target);
+        return source && target && edgeDistance(point.x, point.y, source.x, source.y, target.x, target.y) < 7;
+      });
+    };
+
+    const pointerDown = (event: PointerEvent) => {
+      const nodeHit = hitNode(event);
+      const edgeHit = !nodeHit ? hitEdge(event) : undefined;
+      if (nodeHit) onSelectNode(nodeHit[0]);
+      else if (edgeHit) onSelectEdge(edgeHit.id);
+      interaction = {
+        kind: nodeHit ? "node" : "view",
+        id: nodeHit?.[0],
+        px: event.clientX,
+        py: event.clientY,
+        shift: event.shiftKey || event.button === 2,
+        moved: false,
+      };
+      canvas.setPointerCapture(event.pointerId);
+      canvas.style.cursor = nodeHit ? "move" : "grabbing";
+    };
+
+    const pointerMove = (event: PointerEvent) => {
+      if (!interaction) {
+        hoverId = hitNode(event)?.[0] ?? null;
+        hoverEdgeId = hoverId ? null : hitEdge(event)?.id ?? null;
+        canvas.style.cursor = hoverId ? "pointer" : hoverEdgeId ? "crosshair" : "grab";
+        invalidate();
+        return;
+      }
+      const dx = event.clientX - interaction.px;
+      const dy = event.clientY - interaction.py;
+      if (Math.abs(dx) + Math.abs(dy) > 1) interaction.moved = true;
+      const view = viewRef.current[mode];
+      if (interaction.kind === "node" && interaction.id) {
+        const worldScale = Math.max(3.25, Math.min(6.2, Math.min(width, height) / 118)) * view.zoom;
+        workingNodes = workingNodes.map((node) => node.id === interaction?.id
+          ? { ...node, x: node.x + dx / worldScale, y: node.y + dy / worldScale, pinned: true }
+          : node);
+      } else if (mode === "2d" || interaction.shift) {
+        view.panX += dx;
+        view.panY += dy;
+      } else {
+        view.ry += dx * 0.006;
+        view.rx = Math.max(-1.1, Math.min(1.1, view.rx + dy * 0.006));
+      }
+      interaction.px = event.clientX;
+      interaction.py = event.clientY;
+      invalidate();
+    };
+
+    const pointerUp = () => {
+      if (interaction?.kind === "node" && interaction.id && interaction.moved) {
+        const node = workingNodes.find((item) => item.id === interaction?.id);
+        if (node) onMoveNode(node.id, { x: node.x, y: node.y, z: node.z });
+      }
+      interaction = null;
+      canvas.style.cursor = hoverId ? "pointer" : hoverEdgeId ? "crosshair" : "grab";
+    };
+
+    const wheel = (event: WheelEvent) => {
+      event.preventDefault();
+      const view = viewRef.current[mode];
+      view.zoom = Math.max(0.45, Math.min(3.2, view.zoom * (event.deltaY > 0 ? 0.91 : 1.1)));
+      invalidate();
+    };
+
+    const preventContextMenu = (event: MouseEvent) => event.preventDefault();
+
+    const observer = new ResizeObserver(resize);
+    observer.observe(canvas);
+    canvas.addEventListener("pointerdown", pointerDown);
+    canvas.addEventListener("pointermove", pointerMove);
+    canvas.addEventListener("pointerup", pointerUp);
+    canvas.addEventListener("pointercancel", pointerUp);
+    canvas.addEventListener("lostpointercapture", pointerUp);
+    canvas.addEventListener("wheel", wheel, { passive: false });
+    canvas.addEventListener("contextmenu", preventContextMenu);
+    resize();
+
+    return () => {
+      cancelAnimationFrame(animation);
+      observer.disconnect();
+      canvas.removeEventListener("pointerdown", pointerDown);
+      canvas.removeEventListener("pointermove", pointerMove);
+      canvas.removeEventListener("pointerup", pointerUp);
+      canvas.removeEventListener("pointercancel", pointerUp);
+      canvas.removeEventListener("lostpointercapture", pointerUp);
+      canvas.removeEventListener("wheel", wheel);
+      canvas.removeEventListener("contextmenu", preventContextMenu);
+    };
+  }, [nodes, edges, mode, selectedId, selectedEdgeId, searchHits, onMoveNode, onSelectEdge, onSelectNode]);
 
   return (
-    <main className="studio-shell">
-      <header className="topbar">
-        <div className="brand"><span className="brand-mark">R</span><span>关系星图</span><small>LIVE PROTOTYPE</small></div>
-        <div className="topbar-meta"><span className="status-dot" /> 本地解析 · 内容不会上传</div>
+    <canvas
+      ref={canvasRef}
+      className="relationship-canvas"
+      aria-label="可切换二维与三维、支持缩放、拖动与选择的企业关系图"
+    />
+  );
+});
+
+export default function Home() {
+  const [nodes, setNodes] = useState<StudioNode[]>(() => DEMO_NODES.map((node) => ({ ...node })));
+  const [edges, setEdges] = useState<DemoEdge[]>(() => DEMO_EDGES.map((edge) => ({ ...edge })));
+  const [scenes, setScenes] = useState<DemoScene[]>(() => DEMO_SCENES.map((scene) => ({ ...scene })));
+  const [viewMode, setViewMode] = useState<ViewMode>("3d");
+  const [layoutMode, setLayoutMode] = useState<LayoutMode>("force");
+  const [selectedId, setSelectedId] = useState<string | null>("N01");
+  const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>("E05");
+  const [activeSceneId, setActiveSceneId] = useState("S01");
+  const [sceneNodeIds, setSceneNodeIds] = useState<string[] | null>(null);
+  const [visibleNodeKinds, setVisibleNodeKinds] = useState<NodeKind[]>(ALL_NODE_KINDS);
+  const [visibleEdgeKinds, setVisibleEdgeKinds] = useState<EdgeKind[]>(ALL_EDGE_KINDS);
+  const [query, setQuery] = useState("");
+  const [aiPrompt, setAiPrompt] = useState("识别最关键的三条单点依赖");
+  const [inspectorTab, setInspectorTab] = useState<InspectorTab>("evidence");
+  const [accessRole, setAccessRole] = useState<AccessRole>("分析成员");
+  const [notice, setNotice] = useState("18 ENTITIES · 32 RELATIONS · 100% EVIDENCE COVERAGE");
+  const [resetKey, setResetKey] = useState(0);
+  const [importOpen, setImportOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
+  const [sourceExpanded, setSourceExpanded] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const canvasRef = useRef<CanvasHandle>(null);
+
+  const nodeById = useMemo(() => new Map(nodes.map((node) => [node.id, node])), [nodes]);
+
+  const searchHits = useMemo(() => {
+    const term = normalize(query);
+    if (!term) return new Set<string>();
+    return new Set(nodes.filter((node) => normalize([node.id, node.name, node.subtitle, node.summary, node.metric].join(" ")).includes(term)).map((node) => node.id));
+  }, [nodes, query]);
+
+  const visibleNodes = useMemo(() => {
+    const allowedSceneIds = sceneNodeIds ? new Set(sceneNodeIds) : null;
+    return nodes.filter((node) => visibleNodeKinds.includes(node.kind) && (!allowedSceneIds || allowedSceneIds.has(node.id)));
+  }, [nodes, sceneNodeIds, visibleNodeKinds]);
+
+  const visibleNodeIds = useMemo(() => new Set(visibleNodes.map((node) => node.id)), [visibleNodes]);
+
+  const visibleEdges = useMemo(() => edges.filter((edge) =>
+    visibleEdgeKinds.includes(edge.kind)
+    && visibleNodeIds.has(edge.source)
+    && visibleNodeIds.has(edge.target)
+  ), [edges, visibleEdgeKinds, visibleNodeIds]);
+
+  const selectedNode = selectedId ? nodeById.get(selectedId) ?? null : null;
+  const connectedEdges = useMemo(() => selectedId
+    ? visibleEdges.filter((edge) => edge.source === selectedId || edge.target === selectedId)
+    : [], [selectedId, visibleEdges]);
+  const selectedEdge = selectedEdgeId
+    ? edges.find((edge) => edge.id === selectedEdgeId) ?? connectedEdges[0] ?? null
+    : connectedEdges[0] ?? null;
+
+  const reviewCount = edges.filter((edge) => edge.status === "review").length;
+  const verifiedCount = edges.length - reviewCount;
+
+  const moveNode = useCallback((id: string, position: Pick<DemoNode, "x" | "y" | "z">) => {
+    setNodes((current) => current.map((node) => node.id === id ? { ...node, ...position, pinned: true } : node));
+    setNotice("POSITION PINNED · SCENE STATE UPDATED");
+  }, []);
+
+  const selectNode = useCallback((id: string) => {
+    setSelectedId(id);
+    const edge = edges.find((item) => item.source === id || item.target === id);
+    setSelectedEdgeId(edge?.id ?? null);
+    setInspectorTab("entity");
+  }, [edges]);
+
+  const selectEdge = useCallback((id: string) => {
+    const edge = edges.find((item) => item.id === id);
+    setSelectedEdgeId(id);
+    if (edge) setSelectedId(edge.source);
+    setInspectorTab("evidence");
+  }, [edges]);
+
+  const changeLayout = (next: LayoutMode, rootId = selectedId ?? "N01") => {
+    setNodes((current) => applyLayout(current, edges, next, rootId));
+    setLayoutMode(next);
+    setActiveSceneId("");
+    setResetKey((value) => value + 1);
+    setNotice(next.toUpperCase() + " LAYOUT · DETERMINISTIC SEED APPLIED");
+  };
+
+  const clearPins = () => {
+    setNodes((current) => applyLayout(current.map((node) => ({ ...node, pinned: false })), edges, layoutMode, selectedId ?? "N01"));
+    setNotice("ALL PINNED POSITIONS RELEASED");
+  };
+
+  const toggleNodeKind = (kind: NodeKind) => {
+    setVisibleNodeKinds((current) => current.includes(kind)
+      ? current.filter((item) => item !== kind)
+      : [...current, kind]);
+    setActiveSceneId("");
+  };
+
+  const toggleEdgeKind = (kind: EdgeKind) => {
+    setVisibleEdgeKinds((current) => current.includes(kind)
+      ? current.filter((item) => item !== kind)
+      : [...current, kind]);
+    setActiveSceneId("");
+  };
+
+  const applyScene = (scene: DemoScene) => {
+    setActiveSceneId(scene.id);
+    setSceneNodeIds(scene.visibleNodes ?? null);
+    setVisibleEdgeKinds(scene.visibleKinds ?? ALL_EDGE_KINDS);
+    setVisibleNodeKinds(ALL_NODE_KINDS);
+    setLayoutMode(scene.layout);
+    setNodes((current) => applyLayout(current.map((node) => ({ ...node, pinned: false })), edges, scene.layout, scene.selectedId));
+    setSelectedId(scene.selectedId);
+    const edge = edges.find((item) => item.source === scene.selectedId || item.target === scene.selectedId);
+    setSelectedEdgeId(edge?.id ?? null);
+    setViewMode(scene.id === "S03" || scene.id === "S04" ? "2d" : "3d");
+    setResetKey((value) => value + 1);
+    setNotice("SCENE " + scene.id.replace("S", "") + " APPLIED · " + scene.callout);
+  };
+
+  const runAiCommand = () => {
+    const prompt = normalize(aiPrompt);
+    const target = prompt.includes("资本") || prompt.includes("基金")
+      ? scenes.find((scene) => scene.id === "S03")
+      : prompt.includes("项目") || prompt.includes("验收") || prompt.includes("兑现")
+        ? scenes.find((scene) => scene.id === "S04")
+        : prompt.includes("供应") || prompt.includes("依赖") || prompt.includes("上游")
+          ? scenes.find((scene) => scene.id === "S02")
+          : scenes.find((scene) => scene.id === "S01");
+    if (target) applyScene(target);
+    setNotice("AI VIEW COMMAND INTERPRETED · HUMAN REVIEW REQUIRED");
+  };
+
+  const saveScene = () => {
+    const number = scenes.length + 1;
+    const scene: DemoScene = {
+      id: "S" + String(number).padStart(2, "0"),
+      title: "自定义研判镜头 " + number,
+      subtitle: visibleNodes.length + " 个实体 · " + visibleEdges.length + " 条关系",
+      layout: layoutMode,
+      selectedId: selectedId ?? visibleNodes[0]?.id ?? nodes[0]?.id ?? "",
+      visibleNodes: sceneNodeIds ?? visibleNodes.map((node) => node.id),
+      visibleKinds: visibleEdgeKinds,
+      callout: "已保存当前筛选、布局与焦点。",
+    };
+    setScenes((current) => [...current, scene]);
+    setActiveSceneId(scene.id);
+    setNotice("SCENE " + scene.id.replace("S", "") + " SAVED · REPLAY READY");
+  };
+
+  const exportProject = () => {
+    const project = {
+      schemaVersion: 1,
+      kind: "relationship-studio-project",
+      synthetic: true,
+      title: "东澜新能源产业生态研判",
+      asOf: "2026-03-31",
+      graph: { nodes, edges },
+      scenes,
+      activeState: {
+        viewMode,
+        layoutMode,
+        selectedId,
+        visibleNodeKinds,
+        visibleEdgeKinds,
+      },
+    };
+    downloadBlob(new Blob([JSON.stringify(project, null, 2)], { type: "application/json" }), "donglan-relationship-project.json");
+    setNotice("COMPLETE PROJECT EXPORTED · JSON");
+    setExportOpen(false);
+  };
+
+  const shareScene = async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href + "#scene=" + (activeSceneId || "custom"));
+      setNotice("PRIVATE SCENE LINK COPIED");
+    } catch {
+      setNotice("SCENE READY · COPY THE CURRENT URL");
+    }
+  };
+
+  const handleImport = async (file?: File) => {
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) {
+      setNotice("IMPORT BLOCKED · FILE LIMIT IS 10 MB");
+      return;
+    }
+    try {
+      const result = parseImportedGraph(file.name, await file.text());
+      if (!result.nodes.length || !result.edges.length) throw new Error("文件中没有可显示的关系");
+      setNodes(applyLayout(result.nodes, result.edges, "force", result.nodes[0].id));
+      setEdges(result.edges);
+      setSelectedId(result.nodes[0].id);
+      setSelectedEdgeId(result.edges[0].id);
+      setScenes([]);
+      setSceneNodeIds(null);
+      setVisibleNodeKinds(ALL_NODE_KINDS);
+      setVisibleEdgeKinds(ALL_EDGE_KINDS);
+      setLayoutMode("force");
+      setResetKey((value) => value + 1);
+      setImportOpen(false);
+      setNotice("LOCAL IMPORT COMPLETE · " + result.nodes.length + " ENTITIES · " + result.edges.length + " RELATIONS");
+    } catch (error) {
+      setNotice("IMPORT FAILED · " + (error instanceof Error ? error.message : "无法解析文件"));
+    } finally {
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  const approveSelectedEdge = () => {
+    if (!selectedEdge) return;
+    setEdges((current) => current.map((edge) => edge.id === selectedEdge.id
+      ? { ...edge, status: "verified", confidence: Math.max(edge.confidence, 0.9) }
+      : edge));
+    setNotice("RELATION " + selectedEdge.id + " VERIFIED · AUDIT TRAIL UPDATED");
+  };
+
+  const displayedSources = sourceExpanded ? DEMO_SOURCES : DEMO_SOURCES.slice(0, 4);
+
+  return (
+    <main className="studio-app">
+      <header className="studio-topbar">
+        <div className="studio-brand">
+          <span className="brand-symbol">R</span>
+          <span className="brand-copy"><strong>关系洞察</strong><small>VISUAL INTELLIGENCE STUDIO</small></span>
+        </div>
+        <div className="project-identity">
+          <span className="project-dot" />
+          <div><strong>东澜新能源产业生态研判</strong><small>PROJECT / DL-NE-2026-03 · 信息截止 2026-03-31</small></div>
+        </div>
+        <nav className="studio-tabs" aria-label="工作区导航">
+          <button type="button" className="active">关系画布</button>
+          <button type="button" onClick={() => setInspectorTab("evidence")}>证据台账</button>
+          <button type="button" onClick={() => document.querySelector(".scene-strip")?.scrollIntoView({ behavior: "smooth" })}>叙事镜头</button>
+        </nav>
+        <div className="top-actions">
+          <span className="demo-badge">完全虚构数据 · 演示环境</span>
+          <select value={accessRole} onChange={(event) => {
+            setAccessRole(event.target.value as AccessRole);
+            setNotice("ACCESS VIEW CHANGED · " + event.target.value);
+          }} aria-label="切换演示权限">
+            <option>分析成员</option>
+            <option>外部顾问</option>
+            <option>管理层只读</option>
+          </select>
+          <button type="button" className="quiet-action" onClick={saveScene}>保存镜头</button>
+          <button type="button" className="quiet-action" onClick={shareScene}>分享</button>
+          <div className="export-wrap">
+            <button type="button" className="primary-action" onClick={() => setExportOpen((value) => !value)}>导出 <span>⌄</span></button>
+            {exportOpen && (
+              <div className="export-menu">
+                <button type="button" onClick={() => { canvasRef.current?.exportPng(); setNotice("CURRENT SCENE EXPORTED · PNG"); setExportOpen(false); }}><span>PNG</span><small>当前镜头高清图</small></button>
+                <button type="button" onClick={() => { canvasRef.current?.exportSvg(); setNotice("CURRENT PROJECTION EXPORTED · SVG"); setExportOpen(false); }}><span>SVG</span><small>可编辑矢量投影</small></button>
+                <button type="button" onClick={exportProject}><span>JSON</span><small>完整项目与镜头</small></button>
+              </div>
+            )}
+          </div>
+        </div>
       </header>
 
-      <section className="workspace">
-        <aside className="composer-panel">
-          <div className="eyebrow">NARRATIVE TO NETWORK</div>
-          <h1>一句故事，展开整个人物宇宙。</h1>
-          <p className="lede">粘贴人物描述、小说梗概或剧本片段，生成一张可以探索、拖动和核对原文的 3D 关系图。</p>
-          <div className="example-row" aria-label="示例文本">
-            {(Object.keys(EXAMPLES) as Array<keyof typeof EXAMPLES>).map((key) => <button type="button" key={key} onClick={() => loadExample(key)}>{EXAMPLES[key].label}</button>)}
-          </div>
-          <div className="mode-row">
-            {(["小说", "剧本"] as const).map((item) => <button type="button" key={item} className={`mode-pill ${mode === item ? "active" : ""}`} onClick={() => setMode(item)}>{item}</button>)}
-            <span>{text.length.toLocaleString("zh-CN")} 字</span>
-          </div>
-          <label className="text-label" htmlFor="story-input">故事文本</label>
-          <textarea id="story-input" value={text} onChange={(event) => setText(event.target.value)} placeholder="例：林默是苏晚的哥哥。苏晚和周野是好友……" />
-          <button type="button" className="generate-button" onClick={generate} disabled={isGenerating}>
-            <span>{isGenerating ? "正在绘制关系…" : "生成关系星图"}</span><span className={isGenerating ? "spinner" : ""}>{isGenerating ? "◌" : "↗"}</span>
-          </button>
-          <p className="input-hint">演示版使用本地规则解析，无需 API Key；支持常见亲属、合作、情感与冲突关系。</p>
-          <div className="notice-line"><span className={isGenerating ? "pulse" : ""} />{notice}</div>
+      <section className="kpi-rail" aria-label="项目摘要">
+        <div><span>生态主体</span><strong>{nodes.length}</strong><em>ENTITIES</em></div>
+        <div><span>关系断言</span><strong>{edges.length}</strong><em>RELATIONS</em></div>
+        <div><span>已核验</span><strong>{verifiedCount}</strong><em>VERIFIED</em></div>
+        <div><span>待复核</span><strong className="warning-value">{reviewCount}</strong><em>REVIEW</em></div>
+        <p>每条关系，都能回到证据。<small>模型建议不等于已核实事实，发布前须由授权人员复核。</small></p>
+      </section>
+
+      <section className="studio-workspace">
+        <aside className="left-panel">
+          <section className="ai-command-card">
+            <div className="section-heading"><span>AI 视觉指令</span><em>HUMAN IN CONTROL</em></div>
+            <textarea value={aiPrompt} onChange={(event) => setAiPrompt(event.target.value)} aria-label="AI 视觉指令" />
+            <button type="button" onClick={runAiCommand}><span>生成视图</span><b>↗</b></button>
+            <div className="suggestion-list">
+              {AI_SUGGESTIONS.map((suggestion) => (
+                <button type="button" key={suggestion} onClick={() => setAiPrompt(suggestion)}>{suggestion}</button>
+              ))}
+            </div>
+          </section>
+
+          <section className="panel-section">
+            <div className="section-heading"><span>搜索与定位</span><em>{searchHits.size || "ALL"}</em></div>
+            <label className="search-box">
+              <span>⌕</span>
+              <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="实体、关系或字段…" />
+              {query && <button type="button" onClick={() => setQuery("")}>×</button>}
+            </label>
+            {query && (
+              <div className="search-results">
+                {[...searchHits].slice(0, 4).map((id) => {
+                  const node = nodeById.get(id);
+                  return node ? <button type="button" key={id} onClick={() => selectNode(id)}><i style={{ background: NODE_META[node.kind].color }} /><span>{node.name}</span><em>{node.id}</em></button> : null;
+                })}
+                {searchHits.size === 0 && <p>没有匹配的实体</p>}
+              </div>
+            )}
+          </section>
+
+          <section className="panel-section">
+            <div className="section-heading"><span>数据源</span><em>{DEMO_SOURCES.length} FILES</em></div>
+            <div className="source-stack">
+              {displayedSources.map((source) => (
+                <button type="button" key={source.id} onClick={() => setNotice(source.id + " · " + source.summary)}>
+                  <i>{source.type === "协议" ? "C" : source.type === "项目文件" ? "P" : "D"}</i>
+                  <span><strong>{source.title.replaceAll("《", "").replaceAll("》", "")}</strong><small>{source.date} · {source.type}</small></span>
+                  <em>↗</em>
+                </button>
+              ))}
+            </div>
+            <button type="button" className="panel-link" onClick={() => setSourceExpanded((value) => !value)}>{sourceExpanded ? "收起来源" : "查看全部 15 份来源"} <span>→</span></button>
+            <button type="button" className="import-button" onClick={() => setImportOpen(true)}>＋ 导入本地数据</button>
+          </section>
+
+          <section className="panel-section filter-section">
+            <div className="section-heading"><span>主体类型</span><em>{visibleNodeKinds.length}/{ALL_NODE_KINDS.length}</em></div>
+            <div className="filter-grid">
+              {ALL_NODE_KINDS.map((kind) => (
+                <button type="button" key={kind} className={cx(visibleNodeKinds.includes(kind) && "active")} onClick={() => toggleNodeKind(kind)}>
+                  <i style={{ background: NODE_META[kind].color }} /><span>{NODE_META[kind].label}</span>
+                </button>
+              ))}
+            </div>
+          </section>
+
+          <section className="panel-section relation-filter-section">
+            <div className="section-heading"><span>关系图层</span><em>{visibleEdgeKinds.length}/{ALL_EDGE_KINDS.length}</em></div>
+            <div className="relation-filter-list">
+              {ALL_EDGE_KINDS.map((kind) => {
+                const count = edges.filter((edge) => edge.kind === kind).length;
+                return (
+                  <button type="button" key={kind} className={cx(visibleEdgeKinds.includes(kind) && "active")} onClick={() => toggleEdgeKind(kind)}>
+                    <span className="check-mark">{visibleEdgeKinds.includes(kind) ? "✓" : ""}</span>
+                    <i style={{ background: EDGE_META[kind].color }} />
+                    <span>{EDGE_META[kind].label}</span>
+                    <em>{String(count).padStart(2, "0")}</em>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
         </aside>
 
         <section className="graph-stage">
-          <div className="graph-toolbar">
-            <div className="graph-title"><span className="live-dot" /> 当前图谱</div>
-            <div className="graph-stats"><span>{nodes.length} 人物</span><span>{edges.length} 关系</span><span>{new Set(nodes.map((node) => node.group)).size} 分组</span></div>
-            <div className="toolbar-actions">
-              <button type="button" onClick={() => setResetKey((value) => value + 1)} title="复位视角">复位</button>
-              <button type="button" onClick={exportJson}>JSON</button>
-              <button type="button" onClick={exportPng}>PNG</button>
+          <div className="graph-controlbar">
+            <div className="control-group view-switch" role="group" aria-label="视图模式">
+              <button type="button" className={cx(viewMode === "3d" && "active")} onClick={() => setViewMode("3d")}><span>◈</span> 分析 3D</button>
+              <button type="button" className={cx(viewMode === "2d" && "active")} onClick={() => setViewMode("2d")}><span>◇</span> 汇报 2D</button>
+            </div>
+            <div className="control-divider" />
+            <div className="control-group layout-switch" role="group" aria-label="布局模式">
+              {(["force", "radial", "layered"] as LayoutMode[]).map((layout) => (
+                <button type="button" key={layout} className={cx(layoutMode === layout && "active")} onClick={() => changeLayout(layout)}>
+                  {layout === "force" ? "力导向" : layout === "radial" ? "径向" : "层级"}
+                </button>
+              ))}
+            </div>
+            <div className="graph-status"><span className="live-dot" /> LIVE GRAPH <em>{visibleNodes.length}N / {visibleEdges.length}E</em></div>
+            <button type="button" className="icon-button" onClick={clearPins} title="取消固定节点">PIN ×</button>
+            <button type="button" className="icon-button" onClick={() => canvasRef.current?.fit()} title="适配视图">FIT</button>
+          </div>
+
+          <RelationshipCanvas
+            ref={canvasRef}
+            nodes={visibleNodes}
+            edges={visibleEdges}
+            mode={viewMode}
+            selectedId={selectedId}
+            selectedEdgeId={selectedEdgeId}
+            searchHits={searchHits}
+            resetKey={resetKey}
+            onSelectNode={selectNode}
+            onSelectEdge={selectEdge}
+            onMoveNode={moveNode}
+          />
+
+          <div className="canvas-guide">
+            <span>{viewMode === "3d" ? "拖动空白旋转" : "拖动空白平移"}</span>
+            <span>滚轮缩放</span>
+            <span>拖动实体固定位置</span>
+            <span>Shift + 拖动平移</span>
+          </div>
+          <div className="canvas-legend">
+            <span><i className="solid-line" />已核验</span>
+            <span><i className="dashed-line" />待复核</span>
+            <span><b>◆</b>资本机构</span>
+            <span><b>▣</b>战略项目</span>
+          </div>
+          <div className="notice-toast"><span />{notice}</div>
+
+          <div className="scene-strip">
+            <div className="scene-strip-heading">
+              <span>叙事镜头</span>
+              <em>{scenes.length} SCENES · DETERMINISTIC REPLAY</em>
+            </div>
+            <div className="scene-list">
+              {scenes.map((scene, index) => (
+                <button type="button" key={scene.id} className={cx(scene.id === activeSceneId && "active")} onClick={() => applyScene(scene)}>
+                  <span className="scene-index">{String(index + 1).padStart(2, "0")}</span>
+                  <span className="scene-thumbnail"><i /><i /><i /><b /></span>
+                  <span className="scene-copy"><strong>{scene.title}</strong><small>{scene.subtitle}</small></span>
+                  <em>{scene.id === activeSceneId ? "PLAYING" : "PLAY"}</em>
+                </button>
+              ))}
+              <button type="button" className="add-scene" onClick={saveScene}><span>＋</span><strong>保存当前镜头</strong><small>记录布局、筛选与焦点</small></button>
             </div>
           </div>
-          <RelationshipCanvas nodes={nodes} edges={edges} selectedId={selectedId} resetKey={resetKey} onSelect={setSelectedId} onNodeMove={moveNode} />
-          <div className="legend" aria-label="关系颜色图例">
-            <span><i style={{ background: EDGE_COLORS.kin }} />亲属</span>
-            <span><i style={{ background: EDGE_COLORS.ally }} />友好</span>
-            <span><i style={{ background: EDGE_COLORS.conflict }} />冲突</span>
-            <span><i style={{ background: EDGE_COLORS.secret }} />隐性</span>
-          </div>
-          <div className="graph-help"><span>空白处拖动旋转</span><span>滚轮缩放</span><span>拖动人物固定位置</span></div>
+        </section>
 
-          {selected && (
-            <aside className="inspector-card">
-              <button type="button" className="close-card" onClick={() => setSelectedId(null)} aria-label="关闭人物详情">×</button>
-              <div className="inspector-kicker">人物档案 · {selectedEdges.length} 条连接 {selected.pinned ? "· 已固定" : ""}</div>
-              <h2>{selected.label}</h2>
-              <p>{selected.role}</p>
-              <div className="relation-list">
-                {selectedEdges.map((edge) => {
-                  const otherId = edge.source === selectedId ? edge.target : edge.source;
-                  const other = nodes.find((node) => node.id === otherId);
-                  return (
-                    <button type="button" key={edge.id} onClick={() => setSelectedId(otherId)}>
-                      <i style={{ background: EDGE_COLORS[edge.tone] }} />
-                      <span>{edge.label}</span>
-                      <strong>{other?.label}</strong>
-                      <b>{edge.directed && edge.source === selectedId ? "→" : "↔"}</b>
-                    </button>
-                  );
-                })}
-              </div>
-              {selectedEdges[0] && (
-                <div className="evidence-note">
-                  <div><span>原文证据</span><em>{Math.round(selectedEdges[0].confidence * 100)}% 置信</em></div>
-                  “{selectedEdges[0].evidence}”
+        <aside className="inspector-panel">
+          <div className="inspector-tabs" role="tablist">
+            <button type="button" className={cx(inspectorTab === "entity" && "active")} onClick={() => setInspectorTab("entity")}>实体档案</button>
+            <button type="button" className={cx(inspectorTab === "evidence" && "active")} onClick={() => setInspectorTab("evidence")}>关系证据</button>
+            <button type="button" className={cx(inspectorTab === "analysis" && "active")} onClick={() => setInspectorTab("analysis")}>风险与推断</button>
+          </div>
+
+          {selectedNode ? (
+            <>
+              <section className="entity-hero">
+                <div className="entity-icon" style={{ color: NODE_META[selectedNode.kind].color }}>{NODE_META[selectedNode.kind].short}</div>
+                <div><span>{NODE_META[selectedNode.kind].label} · {selectedNode.id}</span><h2>{selectedNode.name}</h2><p>{selectedNode.subtitle}</p></div>
+                <button type="button" onClick={() => setNotice("ENTITY " + selectedNode.id + " BOOKMARKED")}>☆</button>
+              </section>
+
+              {inspectorTab === "entity" && (
+                <div className="inspector-content">
+                  <div className="verification-row">
+                    <span className={cx("status-pill", selectedNode.status)}>{selectedNode.status === "verified" ? "来源已核验" : selectedNode.status === "planned" ? "规划中" : "待复核"}</span>
+                    <em>{selectedNode.sources.length} 个来源</em>
+                  </div>
+                  <p className="entity-summary">{selectedNode.summary}</p>
+                  <dl className="property-grid">
+                    <div><dt>关键指标</dt><dd>{selectedNode.metric}</dd></div>
+                    <div><dt>依赖等级</dt><dd className={cx("risk-text", selectedNode.risk)}>{selectedNode.risk === "high" ? "高" : selectedNode.risk === "medium" ? "中" : "低"}</dd></div>
+                    <div><dt>信息截止</dt><dd>2026-03-31</dd></div>
+                    <div><dt>可见范围</dt><dd>{accessRole}</dd></div>
+                  </dl>
+                  <div className="subheading"><span>直接连接</span><em>{connectedEdges.length}</em></div>
+                  <div className="connection-list">
+                    {connectedEdges.map((edge) => {
+                      const otherId = edge.source === selectedNode.id ? edge.target : edge.source;
+                      const other = nodeById.get(otherId);
+                      return (
+                        <button type="button" key={edge.id} onClick={() => { setSelectedEdgeId(edge.id); setInspectorTab("evidence"); }}>
+                          <i style={{ background: EDGE_META[edge.kind].color }} />
+                          <span><small>{edge.label}</small><strong>{other?.name ?? otherId}</strong></span>
+                          <em>{edge.directed && edge.source === selectedNode.id ? "→" : edge.directed ? "←" : "↔"}</em>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
-            </aside>
-          )}
-        </section>
+
+              {inspectorTab === "evidence" && (
+                <div className="inspector-content evidence-content">
+                  {selectedEdge ? (
+                    <>
+                      <div className="relation-head">
+                        <span style={{ color: EDGE_META[selectedEdge.kind].color }}>{EDGE_META[selectedEdge.kind].label}</span>
+                        <strong>{nodeById.get(selectedEdge.source)?.name} <b>→</b> {nodeById.get(selectedEdge.target)?.name}</strong>
+                        <div><span className={cx("status-pill", selectedEdge.status)}>{selectedEdge.status === "verified" ? "来源已核对" : "模型建议 · 待复核"}</span><em>证据充分度 {Math.round(selectedEdge.confidence * 100)}%</em></div>
+                      </div>
+                      <section className="evidence-card">
+                        <header><span>关系依据</span><em>{selectedEdge.evidenceId}</em></header>
+                        <h3>{selectedEdge.sourceTitle}</h3>
+                        <p className={cx(accessRole === "外部顾问" && "masked-evidence")}>
+                          {accessRole === "外部顾问"
+                            ? "该证据继承自受限来源；外部顾问视图已遮罩合同字段与原文片段。"
+                            : "“" + selectedEdge.evidence + "”"}
+                        </p>
+                        <dl>
+                          <div><dt>定位</dt><dd>{selectedEdge.location}</dd></div>
+                          <div><dt>提取方式</dt><dd>规则提取 + 模型辅助</dd></div>
+                          <div><dt>权限</dt><dd>{accessRole === "外部顾问" ? "法务受限 · 已遮罩" : "项目成员"}</dd></div>
+                          <div><dt>内容哈希</dt><dd>DEMO-{stableHash(selectedEdge.evidence).toUpperCase()}</dd></div>
+                        </dl>
+                        <footer>
+                          <button type="button" onClick={() => setNotice("SOURCE CONTEXT OPENED · SYNTHETIC DOCUMENT")}>查看上下文</button>
+                          <button type="button" onClick={() => setNotice("FIELD TRACE · " + selectedEdge.evidenceId)}>字段溯源</button>
+                        </footer>
+                      </section>
+                      {selectedEdge.status === "review" && (
+                        <div className="review-callout">
+                          <span>!</span>
+                          <div><strong>此关系需要人工确认</strong><p>系统保留规划值与未完成验收，不自动写成已发生事实。</p></div>
+                          <button type="button" onClick={approveSelectedEdge}>批准为已核验</button>
+                        </div>
+                      )}
+                      <div className="audit-line"><span>MODEL</span><strong>Extractor v2.4</strong><em>Prompt 08 · Schema 1.0</em></div>
+                      <div className="audit-line"><span>LAST REVIEW</span><strong>数据治理组</strong><em>2026-03-28 14:22</em></div>
+                    </>
+                  ) : <div className="empty-inspector">选择一条关系查看字段级证据。</div>}
+                </div>
+              )}
+
+              {inspectorTab === "analysis" && (
+                <div className="inspector-content analysis-content">
+                  <div className="analysis-score">
+                    <span>网络关键性</span><strong>{selectedNode.id === "N01" ? "4.9" : selectedNode.risk === "high" ? "4.4" : "2.8"}</strong><em>/ 5.0</em>
+                    <div><i style={{ width: selectedNode.risk === "high" ? "92%" : "56%" }} /></div>
+                  </div>
+                  <div className="analysis-card">
+                    <span>派生观察</span>
+                    <h3>{selectedNode.id === "N01" ? "单核枢纽，也是潜在单点" : "需结合来源与替代路径人工判断"}</h3>
+                    <p>{selectedNode.id === "N01" ? "14 条直接关系跨越材料、控制系统、资本与项目交付；任一关键能力延期可能沿网络传导。" : selectedNode.summary}</p>
+                    <em>这是图结构派生观察，不代表事实结论。</em>
+                  </div>
+                  <button type="button" className="scenario-button" onClick={() => {
+                    setNotice("HYPOTHETICAL SCENARIO · NODE UNAVAILABLE FOR 7 DAYS");
+                    setVisibleEdgeKinds(["supply", "delivery", "certification"]);
+                  }}>运行假设情景：节点不可用 7 天</button>
+                  <p className="analysis-warning">情景结果用于辅助讨论，不是预测，也不会自动触发业务决策。</p>
+                </div>
+              )}
+            </>
+          ) : <div className="empty-inspector">在画布中选择实体，查看档案与证据。</div>}
+        </aside>
       </section>
+
+      {importOpen && (
+        <div className="modal-backdrop" role="presentation" onMouseDown={(event) => {
+          if (event.currentTarget === event.target) setImportOpen(false);
+        }}>
+          <section className="import-modal" role="dialog" aria-modal="true" aria-labelledby="import-title">
+            <header><div><span>LOCAL DATA IMPORT</span><h2 id="import-title">连接你的关系数据</h2><p>文件只在当前浏览器解析，不会上传到服务器。</p></div><button type="button" onClick={() => setImportOpen(false)}>×</button></header>
+            <div className="connector-grid">
+              <button type="button" className="active" onClick={() => fileInputRef.current?.click()}><i>CSV</i><span><strong>CSV 关系表</strong><small>边列表 · 最大 10MB</small></span><em>选择文件</em></button>
+              <button type="button" className="active" onClick={() => fileInputRef.current?.click()}><i>{"{ }"}</i><span><strong>JSON 图项目</strong><small>nodes + edges / relations</small></span><em>选择文件</em></button>
+              <button type="button" onClick={() => setNotice("NEO4J CONNECTOR · PRODUCT ROADMAP")}><i>●</i><span><strong>Neo4j</strong><small>只读连接器</small></span><em>COMING</em></button>
+              <button type="button" onClick={() => setNotice("REST ADAPTER SDK · PRODUCT ROADMAP")}><i>↔</i><span><strong>REST / JSON API</strong><small>增量数据适配器</small></span><em>COMING</em></button>
+            </div>
+            <div className="import-schema">
+              <span>CSV 最小字段</span>
+              <code>source_label, target_label, relation, evidence</code>
+              <small>可选：source_id, target_id, directed, confidence</small>
+            </div>
+            <footer><span>UTF-8 · 本地校验 · 导入失败不会覆盖当前图</span><button type="button" onClick={() => setImportOpen(false)}>取消</button><button type="button" className="primary-action" onClick={() => fileInputRef.current?.click()}>选择文件</button></footer>
+          </section>
+        </div>
+      )}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".csv,.json,text/csv,application/json"
+        hidden
+        onChange={(event) => handleImport(event.target.files?.[0])}
+      />
     </main>
   );
 }
