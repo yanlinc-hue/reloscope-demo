@@ -13,19 +13,19 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "关系洞察 Agent｜对话驱动的关系分析",
-  description: "左侧对话，右侧建图：调查关系、回到证据、预览修改，并生成可复用的分析镜头。",
+  title: "Reloscope | Visual Relationship Intelligence",
+  description: "Ask the graph, verify the evidence, preview changes, and turn complex relationships into reusable analysis scenes.",
   openGraph: {
-    title: "关系洞察 Agent",
-    description: "对话驱动的可验证关系分析。",
+    title: "Reloscope",
+    description: "Ask the graph. Verify the evidence.",
     type: "website",
-    images: [{ url: "/og-agent.png", width: 1731, height: 909, alt: "关系洞察 Agent 双栏工作台演示封面" }],
+    images: [{ url: "/og-reloscope.png", width: 1731, height: 909, alt: "Reloscope chat-driven visual intelligence workspace" }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "关系洞察 Agent",
-    description: "对话驱动的可验证关系分析。",
-    images: ["/og-agent.png"],
+    title: "Reloscope",
+    description: "Ask the graph. Verify the evidence.",
+    images: ["/og-reloscope.png"],
   },
 };
 

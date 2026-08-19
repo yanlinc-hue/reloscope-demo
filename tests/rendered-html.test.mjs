@@ -19,12 +19,13 @@ test("server-renders the chat-driven visual analyst demo", async () => {
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
 
   const html = await response.text();
-  assert.match(html, /关系洞察 Agent/);
+  assert.match(html, /RELOSCOPE/);
   assert.match(html, /Visual Analyst/);
   assert.match(html, /DEMO AGENT · LOCAL ORCHESTRATION/);
   assert.match(html, /ACTION PLAN/);
-  assert.match(html, /上游依赖调查/);
-  assert.match(html, /东澜新能源产业生态研判/);
-  assert.match(html, /完全虚构数据/);
+  assert.match(html, /Upstream dependency investigation/);
+  assert.match(html, /Donglan New Energy Ecosystem Review/);
+  assert.match(html, /SYNTHETIC DATA · DEMO ONLY/);
+  assert.doesNotMatch(html, /[一-龥]/);
   assert.doesNotMatch(html, /Your site is taking shape/);
 });

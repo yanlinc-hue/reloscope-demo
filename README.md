@@ -1,32 +1,32 @@
-# 关系洞察 Agent
+# Reloscope
 
-一个“左侧对话、右侧关系图”的 Visual Analyst Demo。当前项目使用完全合成的新能源产业数据，展示 Agent 如何调查关系、解释证据、预览修改并生成分析镜头。
+A chat-driven Visual Analyst demo: conversation on the left, a relationship graph on the right. The project uses a fully synthetic new-energy dataset to demonstrate graph investigation, evidence-backed explanations, change previews, and reusable analysis scenes.
 
-## Demo 能力
+## Demo capabilities
 
-- 18 个虚构实体、32 条关系、15 份合成来源与 4 个预置镜头
-- 通过自然语言展开上游、穿透资本路径、定位实体和解释风险
-- 聊天与画布双向联动：点选节点或关系会成为下一轮对话上下文
-- 只读分析自动作用到右侧；关系修改和 Scene 保存先预览、再确认
-- Action Plan、证据引用、写入阻止与视觉操作撤销
-- 同一份图数据在分析 3D 与汇报 2D 之间切换
-- 力导向、径向、层级三种布局；节点拖动与位置固定
-- 右侧边级证据抽屉与“在对话中解释”
-- 本地 CSV / JSON 导入，文件不会上传服务器
-- PNG、SVG 与完整项目 JSON 导出
+- 18 fictional entities, 32 relationships, 15 synthetic sources, and 4 preset scenes
+- Natural-language upstream exploration, capital-path tracing, entity focus, and risk explanation
+- Two-way chat/canvas context: selecting a node or edge informs the next turn
+- Read-only analysis updates the graph immediately; graph changes and scene saves require preview and approval
+- Structured Action Plans, evidence references, unsupported-write blocking, and visual undo
+- Shared graph state across analytical 3D and presentation-ready 2D views
+- Force, radial, and layered layouts with draggable, pinnable nodes
+- Edge-level evidence drawer with “Explain in Chat”
+- Browser-local CSV / JSON import
+- PNG, SVG, and complete project JSON export
 
-本版本的 Agent 由本地确定性规则编排，用于稳定演示产品交互，不会调用真实模型，也不代表生产级权限、审计或百万级 GPU 大图性能。
+This demo uses deterministic local orchestration for a stable presentation. It does not call a live model and does not represent production-grade authorization, auditing, or million-element GPU rendering.
 
-## 推荐演示语句
+## Suggested demo prompts
 
-- `为什么岚芯智控是高风险节点？`
-- `穿透产业基金到两个项目的路径`
-- `把嘉序资本到岚芯智控改成实际控制，并标为已核验`
-- `把当前分析整理成投委会镜头`
+- `Why is Lanxin Intelligent Controls a high-risk node?`
+- `Trace the industrial fund's path to both projects.`
+- `Change Jiaxu Capital's relationship to Lanxin Intelligent Controls to effective control and mark it verified.`
+- `Turn this analysis into investment committee scenes.`
 
-## 本地运行
+## Local development
 
-需要 Node.js 22.13 或更高版本。
+Requires Node.js 22.13 or later.
 
 ```bash
 npm install

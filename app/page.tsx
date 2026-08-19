@@ -25,7 +25,7 @@ import { buildAgentTurn } from "./agent-demo";
 type ViewMode = "2d" | "3d";
 type LayoutMode = DemoScene["layout"];
 type StudioNode = DemoNode & { pinned?: boolean };
-type AccessRole = "分析成员" | "外部顾问" | "管理层只读";
+type AccessRole = "Analyst" | "External Counsel" | "Executive Viewer";
 type InspectorTab = "entity" | "evidence" | "analysis";
 
 type PlanStatus = "applied" | "preview" | "blocked" | "saved";
@@ -77,65 +77,65 @@ type CanvasHandle = {
 };
 
 const NODE_META: Record<NodeKind, { label: string; color: string; short: string }> = {
-  company: { label: "企业", color: "#69a7ff", short: "CO" },
-  capital: { label: "资本机构", color: "#b99cff", short: "CA" },
-  government: { label: "政府机构", color: "#f4bb5f", short: "GV" },
-  institution: { label: "专业机构", color: "#5bd8db", short: "IN" },
-  person: { label: "关键角色", color: "#ff9266", short: "PE" },
-  project: { label: "战略项目", color: "#59d7a0", short: "PR" },
+  company: { label: "Company", color: "#69a7ff", short: "CO" },
+  capital: { label: "Capital", color: "#b99cff", short: "CA" },
+  government: { label: "Government", color: "#f4bb5f", short: "GV" },
+  institution: { label: "Institution", color: "#5bd8db", short: "IN" },
+  person: { label: "Key Person", color: "#ff9266", short: "PE" },
+  project: { label: "Project", color: "#59d7a0", short: "PR" },
 };
 
 const EDGE_META: Record<EdgeKind, { label: string; color: string }> = {
-  supply: { label: "供应", color: "#62a8ff" },
-  capital: { label: "投资 / 持股", color: "#b39af8" },
-  governance: { label: "任职 / 治理", color: "#ff956b" },
-  research: { label: "联合研发", color: "#51d2d9" },
-  certification: { label: "认证 / 验收", color: "#efcd61" },
-  support: { label: "政策支持", color: "#e7a84f" },
-  delivery: { label: "项目交付", color: "#58d694" },
-  circular: { label: "回收闭环", color: "#55cdbc" },
+  supply: { label: "Supply", color: "#62a8ff" },
+  capital: { label: "Investment / Equity", color: "#b39af8" },
+  governance: { label: "Governance", color: "#ff956b" },
+  research: { label: "Joint R&D", color: "#51d2d9" },
+  certification: { label: "Certification", color: "#efcd61" },
+  support: { label: "Policy Support", color: "#e7a84f" },
+  delivery: { label: "Project Delivery", color: "#58d694" },
+  circular: { label: "Circular Flow", color: "#55cdbc" },
 };
 
 const ALL_NODE_KINDS = Object.keys(NODE_META) as NodeKind[];
 const ALL_EDGE_KINDS = Object.keys(EDGE_META) as EdgeKind[];
 
 const AI_SUGGESTIONS = [
-  "识别最关键的三条单点依赖",
-  "穿透产业基金到两个项目的影响路径",
-  "只看待复核关系及其证据",
+  "Identify the three most critical single-source dependencies",
+  "Trace the industrial fund's path to both projects",
+  "Show only unverified relationships and their evidence",
 ];
 
 const INITIAL_CHAT: ChatMessage[] = [
   {
     id: "M00",
     role: "assistant",
-    body: "我可以调查这张关系图、回到证据，并把分析过程整理成镜头。只读分析会直接作用到右侧；关系修改会先给你预览。",
+    body: "I can investigate this graph, trace every claim to evidence, and turn the analysis into reusable scenes. Read-only analysis updates the canvas immediately; graph changes are previewed first.",
   },
   {
     id: "M01",
     role: "user",
-    body: "以霁川动力为中心，展开两层上游，只看供应和研发关系。",
+    body: "Starting from Jichuan Power, expand two hops upstream and show only supply and R&D relationships.",
   },
   {
     id: "M02",
     role: "assistant",
-    body: "已聚焦霁川动力的两层上游。当前视图保留 6 个实体、8 条供应与研发关系；三条高依赖边已高亮。",
+    body: "I expanded Jichuan Power's two-hop upstream network. The current view contains 6 entities and 8 supply or R&D relationships; the three highest-dependency nodes are highlighted.",
     plan: {
       id: "AP-01",
-      title: "上游依赖调查",
+      title: "Upstream dependency investigation",
       risk: "R1",
       status: "applied",
-      steps: ["定位霁川动力", "展开两层邻域", "筛选供应 / 研发", "径向布局并高亮"],
-      impact: "6 个实体 · 8 条关系 · 可撤销",
+      steps: ["Locate Jichuan Power", "Expand two hops", "Filter supply / R&D", "Apply radial layout"],
+      impact: "6 entities · 8 relationships · Undo available",
     },
     evidenceRefs: ["S01-C2", "S03-C1", "S03-C2", "S04-C1"],
   },
 ];
 
 const QUICK_PROMPTS = [
-  "为什么岚芯智控是高风险节点？",
-  "穿透产业基金到两个项目的路径",
-  "把当前分析整理成投委会镜头",
+  "Why is Lanxin Intelligent Controls a high-risk node?",
+  "Trace the industrial fund's path to both projects",
+  "Turn this analysis into investment committee scenes",
 ];
 
 function cx(...values: Array<string | false | null | undefined>) {
@@ -316,13 +316,13 @@ function parseCsv(text: string) {
 }
 
 function inferEdgeKind(value: string): EdgeKind {
-  if (/投资|持股|基金/.test(value)) return "capital";
-  if (/任职|治理|董事|管理/.test(value)) return "governance";
-  if (/研发|专利|联合开发/.test(value)) return "research";
-  if (/认证|验收|检测/.test(value)) return "certification";
-  if (/政策|专项|支持/.test(value)) return "support";
-  if (/交付|项目|配套/.test(value)) return "delivery";
-  if (/回收|再生|循环/.test(value)) return "circular";
+  if (/投资|持股|基金|invest|equity|fund/i.test(value)) return "capital";
+  if (/任职|治理|董事|管理|govern|director|manage/i.test(value)) return "governance";
+  if (/研发|专利|联合开发|research|patent|r&d/i.test(value)) return "research";
+  if (/认证|验收|检测|certif|acceptance|test/i.test(value)) return "certification";
+  if (/政策|专项|支持|policy|grant|support/i.test(value)) return "support";
+  if (/交付|项目|配套|deliver|project/i.test(value)) return "delivery";
+  if (/回收|再生|循环|recycl|circular/i.test(value)) return "circular";
   return "supply";
 }
 
@@ -330,27 +330,27 @@ function parseImportedGraph(filename: string, text: string) {
   if (filename.toLowerCase().endsWith(".json")) {
     const payload = JSON.parse(text) as Record<string, unknown>;
     const graph = payload.graph && typeof payload.graph === "object" ? payload.graph as Record<string, unknown> : payload;
-    if (!Array.isArray(graph.nodes)) throw new Error("JSON 缺少 nodes 数组");
+    if (!Array.isArray(graph.nodes)) throw new Error("JSON is missing a nodes array");
     const rawEdges = Array.isArray(graph.edges)
       ? graph.edges
       : Array.isArray(graph.relations)
         ? graph.relations
         : null;
-    if (!rawEdges) throw new Error("JSON 缺少 edges 或 relations 数组");
+    if (!rawEdges) throw new Error("JSON is missing an edges or relations array");
     const nodes: StudioNode[] = graph.nodes.map((raw, index) => {
       const item = raw as Record<string, unknown>;
       const name = String(item.name ?? item.label ?? "").trim();
-      if (!name) throw new Error("第 " + (index + 1) + " 个节点缺少 name/label");
+      if (!name) throw new Error("Node " + (index + 1) + " is missing name/label");
       const kind = ALL_NODE_KINDS.includes(item.kind as NodeKind) ? item.kind as NodeKind : "company";
       return {
         id: String(item.id ?? "N-" + stableHash(name)),
         name,
         kind,
-        subtitle: String(item.subtitle ?? item.role ?? "导入实体"),
+        subtitle: String(item.subtitle ?? item.role ?? "Imported entity"),
         x: Number.isFinite(Number(item.x)) ? Number(item.x) : Math.cos(index * 2.4) * (18 + index * 1.5),
         y: Number.isFinite(Number(item.y)) ? Number(item.y) : Math.sin(index * 2.4) * (18 + index * 1.5),
         z: Number.isFinite(Number(item.z)) ? Number(item.z) : (index % 5) * 2,
-        summary: String(item.summary ?? "由本地文件导入的实体。"),
+        summary: String(item.summary ?? "Entity imported from a local file."),
         metric: String(item.metric ?? "LOCAL IMPORT"),
         risk: ["high", "medium", "low"].includes(String(item.risk)) ? item.risk as DemoNode["risk"] : "medium",
         status: ["verified", "review", "planned"].includes(String(item.status)) ? item.status as DemoNode["status"] : "review",
@@ -363,9 +363,9 @@ function parseImportedGraph(filename: string, text: string) {
       const source = String(item.source ?? "");
       const target = String(item.target ?? "");
       if (!ids.has(source) || !ids.has(target)) {
-        throw new Error("第 " + (index + 1) + " 条关系指向不存在的节点");
+        throw new Error("Relationship " + (index + 1) + " points to a missing node");
       }
-      const label = String(item.label ?? item.relation ?? "关联");
+      const label = String(item.label ?? item.relation ?? "Related to");
       const kind = ALL_EDGE_KINDS.includes(item.kind as EdgeKind)
         ? item.kind as EdgeKind
         : inferEdgeKind(label);
@@ -378,9 +378,9 @@ function parseImportedGraph(filename: string, text: string) {
         weight: Math.max(0.1, Math.min(1, Number(item.weight ?? 0.6))),
         status: item.status === "verified" ? "verified" : "review",
         evidenceId: String(item.evidenceId ?? "LOCAL-" + (index + 1)),
-        evidence: String(item.evidence ?? "导入文件未提供证据片段。"),
+        evidence: String(item.evidence ?? "No evidence excerpt was provided in the imported file."),
         sourceTitle: String(item.sourceTitle ?? filename),
-        location: String(item.location ?? "本地导入"),
+        location: String(item.location ?? "Local import"),
         confidence: Math.max(0, Math.min(1, Number(item.confidence ?? 0.7))),
         directed: item.directed !== false && item.directed !== "false",
       };
@@ -389,18 +389,18 @@ function parseImportedGraph(filename: string, text: string) {
   }
 
   const table = parseCsv(text);
-  if (table.length < 2) throw new Error("CSV 至少需要表头和一条关系");
+  if (table.length < 2) throw new Error("CSV requires a header and at least one relationship");
   const headers = table[0].map((value) => normalize(value));
   const column = (row: string[], name: string) => row[headers.indexOf(name)] ?? "";
   if (!headers.includes("source_label") || !headers.includes("target_label")) {
-    throw new Error("CSV 需要 source_label 与 target_label 字段");
+    throw new Error("CSV requires source_label and target_label columns");
   }
   const nodeById = new Map<string, StudioNode>();
   const edges: DemoEdge[] = [];
   table.slice(1).filter((row) => row.some(Boolean)).forEach((row, index) => {
     const sourceName = column(row, "source_label").trim();
     const targetName = column(row, "target_label").trim();
-    if (!sourceName || !targetName) throw new Error("CSV 第 " + (index + 2) + " 行缺少实体名称");
+    if (!sourceName || !targetName) throw new Error("CSV row " + (index + 2) + " is missing an entity name");
     const source = column(row, "source_id").trim() || "N-" + stableHash(sourceName);
     const target = column(row, "target_id").trim() || "N-" + stableHash(targetName);
     [source, target].forEach((id, nodeIndex) => {
@@ -411,11 +411,11 @@ function parseImportedGraph(filename: string, text: string) {
           id,
           name,
           kind: "company",
-          subtitle: "CSV 导入实体",
+          subtitle: "CSV imported entity",
           x: Math.cos(count * 2.4) * (18 + count * 2),
           y: Math.sin(count * 2.4) * (18 + count * 2),
           z: ((count % 5) - 2) * 3,
-          summary: "由本地 CSV 关系表生成。",
+          summary: "Generated from a local CSV relationship table.",
           metric: "LOCAL IMPORT",
           risk: "medium",
           status: "review",
@@ -423,7 +423,7 @@ function parseImportedGraph(filename: string, text: string) {
         });
       }
     });
-    const label = column(row, "relation").trim() || "关联";
+    const label = column(row, "relation").trim() || "Related to";
     edges.push({
       id: "E-" + stableHash(source + target + label + index),
       source,
@@ -433,9 +433,9 @@ function parseImportedGraph(filename: string, text: string) {
       weight: 0.62,
       status: "review",
       evidenceId: "LOCAL-" + (index + 1),
-      evidence: column(row, "evidence") || "导入文件未提供证据片段。",
+      evidence: column(row, "evidence") || "No evidence excerpt was provided in the imported file.",
       sourceTitle: filename,
-      location: "CSV 第 " + (index + 2) + " 行",
+      location: "CSV row " + (index + 2),
       confidence: Math.max(0, Math.min(1, Number(column(row, "confidence") || 0.7))),
       directed: column(row, "directed").toLowerCase() !== "false",
     });
@@ -917,7 +917,7 @@ const RelationshipCanvas = forwardRef<CanvasHandle, CanvasProps>(function Relati
     <canvas
       ref={canvasRef}
       className="relationship-canvas"
-      aria-label="可切换二维与三维、支持缩放、拖动与选择的企业关系图"
+      aria-label="Interactive relationship graph with 2D and 3D views, zoom, drag, and selection"
     />
   );
 });
@@ -935,15 +935,15 @@ export default function Home() {
   const [visibleNodeKinds, setVisibleNodeKinds] = useState<NodeKind[]>(ALL_NODE_KINDS);
   const [visibleEdgeKinds, setVisibleEdgeKinds] = useState<EdgeKind[]>(["supply", "research"]);
   const [query, setQuery] = useState("");
-  const [aiPrompt, setAiPrompt] = useState("识别最关键的三条单点依赖");
+  const [aiPrompt, setAiPrompt] = useState("Identify the three most critical single-source dependencies");
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>(INITIAL_CHAT);
-  const [chatDraft, setChatDraft] = useState("为什么岚芯智控是高风险节点？");
+  const [chatDraft, setChatDraft] = useState("Why is Lanxin Intelligent Controls a high-risk node?");
   const [agentBusy, setAgentBusy] = useState(false);
   const [pendingAction, setPendingAction] = useState<PendingAgentAction | null>(null);
   const [highlightNodeIds, setHighlightNodeIds] = useState<string[]>(["N02", "N03", "N05"]);
   const [visualHistory, setVisualHistory] = useState<VisualSnapshot[]>([]);
   const [inspectorTab, setInspectorTab] = useState<InspectorTab>("evidence");
-  const [accessRole, setAccessRole] = useState<AccessRole>("分析成员");
+  const [accessRole, setAccessRole] = useState<AccessRole>("Analyst");
   const [notice, setNotice] = useState("18 ENTITIES · 32 RELATIONS · 100% EVIDENCE COVERAGE");
   const [resetKey, setResetKey] = useState(0);
   const [importOpen, setImportOpen] = useState(false);
@@ -1040,7 +1040,7 @@ export default function Home() {
     setChatMessages((current) => {
       const name = nodes.find((node) => node.id === id)?.name ?? id;
       if (current.at(-1)?.role === "context" && current.at(-1)?.body.includes(id)) return current;
-      return [...current, { id: "CTX-" + Date.now(), role: "context", body: `已将「${name}」设为当前上下文（${id}）。可以继续问“为什么它重要？”或“看它的上游”。` }];
+      return [...current, { id: "CTX-" + Date.now(), role: "context", body: `“${name}” is now the active context (${id}). Ask “Why does it matter?” or “Show its upstream network.”` }];
     });
   }, [edges, nodes]);
 
@@ -1052,7 +1052,7 @@ export default function Home() {
     setPendingAction(null);
     setChatMessages((current) => {
       if (current.at(-1)?.role === "context" && current.at(-1)?.body.includes(id)) return current;
-      return [...current, { id: "CTX-" + Date.now(), role: "context", body: `已选择关系 ${id}。下一条问题会优先使用这条关系及其证据。` }];
+      return [...current, { id: "CTX-" + Date.now(), role: "context", body: `Relationship ${id} is now selected. Your next question will use this relationship and its evidence as context.` }];
     });
   }, [edges]);
 
@@ -1084,7 +1084,7 @@ export default function Home() {
   };
 
   const applyScene = (scene: DemoScene) => {
-    rememberVisual("应用镜头 · " + scene.title);
+    rememberVisual("Apply scene · " + scene.title);
     setActiveSceneId(scene.id);
     setSceneNodeIds(scene.visibleNodes ?? null);
     setVisibleEdgeKinds(scene.visibleKinds ?? ALL_EDGE_KINDS);
@@ -1101,11 +1101,11 @@ export default function Home() {
 
   const runAiCommand = () => {
     const prompt = normalize(aiPrompt);
-    const target = prompt.includes("资本") || prompt.includes("基金")
+    const target = prompt.includes("资本") || prompt.includes("基金") || prompt.includes("capital") || prompt.includes("fund")
       ? scenes.find((scene) => scene.id === "SC03")
-      : prompt.includes("项目") || prompt.includes("验收") || prompt.includes("兑现")
+      : prompt.includes("项目") || prompt.includes("验收") || prompt.includes("兑现") || prompt.includes("project") || prompt.includes("acceptance")
         ? scenes.find((scene) => scene.id === "SC04")
-        : prompt.includes("供应") || prompt.includes("依赖") || prompt.includes("上游")
+        : prompt.includes("供应") || prompt.includes("依赖") || prompt.includes("上游") || prompt.includes("supply") || prompt.includes("depend") || prompt.includes("upstream")
           ? scenes.find((scene) => scene.id === "SC02")
           : scenes.find((scene) => scene.id === "SC01");
     if (target) applyScene(target);
@@ -1142,19 +1142,19 @@ export default function Home() {
         setPendingAction({
           id: "PA-CONTROL",
           kind: "relation-change",
-          title: "嘉序资本 → 岚芯智控：改为“实际控制”",
-          description: "现有证据只支持 18% 直接持股，不能推出实际控制。系统已阻止写入。",
+          title: "Jiaxu Capital → Lanxin Intelligent Controls: change to “effective control”",
+          description: "Current evidence supports only an 18% direct equity stake. It does not establish control, so the write has been blocked.",
         });
         respond({
-          body: "我不能把这条关系直接改成“实际控制”。现有来源只证明嘉序资本直接持股 18%，没有表决权安排、董事席位或一致行动协议作为支撑。右侧已定位到原关系与证据。",
+          body: "I cannot change this relationship to “effective control.” The current source proves only that Jiaxu Capital owns an 18% direct stake; it provides no voting arrangement, board rights, or concert-party agreement. I located the original relationship and evidence on the right.",
           plan: {
             id: "AP-04",
-            title: "关系修改预检",
+            title: "Relationship change preflight",
             risk: "R2",
             status: "blocked",
-            steps: ["定位 E13", "核对来源 S08-C1", "检查控制权证据", "阻止不充分写入"],
-            impact: "0 条关系被修改",
-            note: "可保留“直接持股 18%”，或新增“治理影响 · 待复核”任务。",
+            steps: ["Locate E13", "Verify S08-C1", "Test control evidence", "Block unsupported write"],
+            impact: "0 relationships changed",
+            note: "Keep “18% direct equity,” or open a review task for “governance influence.”",
           },
           evidenceRefs: ["S08-C1"],
         });
@@ -1162,20 +1162,20 @@ export default function Home() {
         setPendingAction({
           id: "PA-SCENES",
           kind: "scene-save",
-          title: "保存 3 个投委会镜头",
-          description: "上游依赖、资本穿透、证据缺口。保存只会写入本地演示项目，不修改图数据。",
+          title: "Save 3 investment committee scenes",
+          description: "Upstream dependencies, capital pathways, and evidence gaps. Saving updates only the local demo project, not the graph data.",
         });
         respond({
-          body: "我已整理出 3 个投委会镜头草案。它们复用同一份图数据，只改变筛选、布局、焦点与说明；确认后保存到下方镜头条。",
+          body: "I prepared three investment committee scene drafts. They reuse the same graph data and change only filters, layout, focus, and narrative. Confirm to save them to the scene strip.",
           plan: {
             id: "AP-05",
-            title: "投委会叙事编排",
+            title: "Investment committee narrative",
             risk: "R2",
             status: "preview",
-            steps: ["上游依赖", "资本穿透", "证据缺口"],
-            impact: "新增 3 个本地镜头 · 图数据 0 改动",
+            steps: ["Upstream dependency", "Capital path", "Evidence gap"],
+            impact: "3 local scenes · 0 graph-data changes",
           },
-          sceneDrafts: ["01 · 上游依赖：三条长替代周期", "02 · 资本穿透：基金到项目路径", "03 · 证据缺口：持股不等同控制"],
+          sceneDrafts: ["01 · Upstream dependency: three long replacement cycles", "02 · Capital path: fund-to-project routes", "03 · Evidence gap: equity does not equal control"],
         });
       } else if (intent === "capital-path") {
         const scene = scenes.find((item) => item.id === "SC03");
@@ -1185,14 +1185,14 @@ export default function Home() {
         setSelectedEdgeId("E12");
         setHighlightNodeIds(["N11", "N10", "N05", "N07", "N17", "N18"]);
         respond({
-          body: "已生成资本穿透视图：东澜产业引导基金经嘉序资本连接岚芯智控与海隅储能，再延伸到项目端。注意：基金出资与持股关系只能证明资本路径，不能单独证明实际控制。",
+          body: "I generated the capital-path view. The Donglan Industrial Guidance Fund connects through Jiaxu Capital to Lanxin Intelligent Controls and Haiyu Energy Storage, then extends to the project layer. Fund commitments and equity stakes establish a capital path, not effective control on their own.",
           plan: {
             id: "AP-03",
-            title: "基金到项目的穿透路径",
+            title: "Fund-to-project path analysis",
             risk: "R1",
             status: "applied",
-            steps: ["定位产业基金", "计算最短路径", "识别共同资本节点", "切换层级 2D"],
-            impact: "8 个实体 · 资本 / 治理 / 研发关系 · 可撤销",
+            steps: ["Locate the fund", "Calculate shortest paths", "Find shared capital nodes", "Switch to layered 2D"],
+            impact: "8 entities · capital / governance / R&D · Undo available",
           },
           evidenceRefs: ["S08-C1", "S08-C2", "S08-C3"],
         });
@@ -1204,14 +1204,14 @@ export default function Home() {
         setHighlightNodeIds(["N02", "N03", "N05"]);
         setInspectorTab("evidence");
         respond({
-          body: "岚芯智控的风险来自“覆盖集中 + 替代慢”，不是只看中心性：它覆盖霁川动力 62% 的在产电池包，替代验证周期超过 7 个月。另两条材料依赖分别是 44% 正极材料和 36% 直接锂盐；这些比例属于不同品类，不能相加。",
+          body: "Lanxin Intelligent Controls is risky because of concentrated coverage and slow replacement—not centrality alone. Its controllers cover 62% of Jichuan Power's battery packs, with a replacement validation cycle above seven months. Two separate material dependencies are 44% for cathode material and 36% for direct lithium supply; these category-specific ratios must not be added together.",
           plan: {
             id: "AP-02",
-            title: "证据优先的风险解释",
+            title: "Evidence-first risk explanation",
             risk: "R0",
             status: "applied",
-            steps: ["读取高依赖边", "回到原始摘录", "比较替代周期", "保留口径限制"],
-            impact: "4 条证据已引用 · 图数据 0 改动",
+            steps: ["Read high-dependency edges", "Open source excerpts", "Compare replacement cycles", "Preserve metric caveats"],
+            impact: "4 evidence references · 0 graph-data changes",
           },
           evidenceRefs: ["S01-C2", "S03-C1", "S03-C2", "S04-C1"],
         });
@@ -1220,24 +1220,24 @@ export default function Home() {
         if (scene) applyScene(scene);
         setHighlightNodeIds(["N02", "N03", "N05"]);
         respond({
-          body: "已从霁川动力展开两层上游，并只保留供应与研发关系。高亮的星峪锂源、澄岳新材和岚芯智控都有较长替代周期。",
+          body: "I expanded two hops upstream from Jichuan Power and retained only supply and R&D relationships. The highlighted nodes—Xingyu Lithium, Chengyue Advanced Materials, and Lanxin Intelligent Controls—each have long replacement cycles.",
           plan: {
             id: "AP-01B",
-            title: "上游依赖调查",
+            title: "Upstream dependency investigation",
             risk: "R1",
             status: "applied",
-            steps: ["定位中心实体", "展开两层", "筛选关系", "高亮高依赖节点"],
-            impact: "6 个实体 · 8 条关系 · 可撤销",
+            steps: ["Locate the focal entity", "Expand two hops", "Filter relationships", "Highlight high dependencies"],
+            impact: "6 entities · 8 relationships · Undo available",
           },
           evidenceRefs: ["S01-C2", "S03-C1", "S03-C2"],
         });
-      } else if (term.includes("显示全部") || term.includes("重置")) {
+      } else if (term.includes("显示全部") || term.includes("重置") || term.includes("show all") || term.includes("reset")) {
         const scene = scenes.find((item) => item.id === "SC01");
         if (scene) applyScene(scene);
         setHighlightNodeIds([]);
         respond({
-          body: "已恢复完整生态视图。所有实体与关系重新可见，右侧焦点回到霁川动力。",
-          plan: { id: "AP-RESET", title: "恢复完整视图", risk: "R1", status: "applied", steps: ["清除局部筛选", "恢复完整图", "重设焦点"], impact: "18 个实体 · 32 条关系 · 可撤销" },
+          body: "The full ecosystem view is restored. All entities and relationships are visible again, with focus returned to Jichuan Power.",
+          plan: { id: "AP-RESET", title: "Restore full graph", risk: "R1", status: "applied", steps: ["Clear local filters", "Restore the full graph", "Reset focus"], impact: "18 entities · 32 relationships · Undo available" },
         });
       } else {
         const mentioned = nodes.find((node) => term.includes(normalize(node.name)) || term.includes(normalize(node.id)));
@@ -1246,14 +1246,14 @@ export default function Home() {
           setSelectedEdgeId(edges.find((edge) => edge.source === mentioned.id || edge.target === mentioned.id)?.id ?? null);
           setHighlightNodeIds([mentioned.id]);
           respond({
-            body: `${mentioned.name}：${mentioned.summary} 右侧已定位该实体；你可以继续问它的上游、资本路径或证据。`,
-            plan: { id: "AP-FOCUS", title: "定位并读取实体", risk: "R0", status: "applied", steps: ["解析实体", "定位节点", "读取授权字段"], impact: "只读 · 图数据 0 改动" },
+            body: `${mentioned.name}: ${mentioned.summary} I located this entity on the right. You can now ask about its upstream network, capital paths, or evidence.`,
+            plan: { id: "AP-FOCUS", title: "Locate and inspect entity", risk: "R0", status: "applied", steps: ["Resolve entity", "Focus node", "Read authorized fields"], impact: "Read only · 0 graph-data changes" },
             evidenceRefs: mentioned.sources,
           });
         } else {
           respond({
-            body: "我还不能确定你希望改变哪一部分视图。可以具体说“看霁川动力上游两层”“穿透产业基金路径”或“整理成投委会镜头”。为避免误操作，右侧图没有变化。",
-            plan: { id: "AP-CLARIFY", title: "需要澄清", risk: "R0", status: "blocked", steps: ["未识别唯一目标", "未执行任何命令"], impact: "0 个视觉动作" },
+            body: "I cannot yet determine which part of the view you want to change. Try “Show Jichuan Power's two-hop upstream network,” “Trace the industrial fund,” or “Create investment committee scenes.” To avoid a wrong action, the graph has not changed.",
+            plan: { id: "AP-CLARIFY", title: "Clarification required", risk: "R0", status: "blocked", steps: ["No unique target found", "No command executed"], impact: "0 visual actions" },
           });
         }
       }
@@ -1266,19 +1266,19 @@ export default function Home() {
     if (!pendingAction) return;
     if (pendingAction.kind === "relation-change") {
       setPendingAction(null);
-      setChatMessages((current) => [...current, { id: "A-" + Date.now(), role: "assistant", body: "已保留原始“直接持股 18%”关系，并把“控制权证据不足”留在分析记录中；没有改写事实。" }]);
+      setChatMessages((current) => [...current, { id: "A-" + Date.now(), role: "assistant", body: "The original “18% direct equity” relationship has been preserved, and the control-evidence gap remains in the analysis record. No fact was rewritten." }]);
       setNotice("UNSUPPORTED RELATION CHANGE DISCARDED");
       return;
     }
 
     const additions: DemoScene[] = [
-      { id: "SC05", title: "投委会 01 · 上游依赖", subtitle: "三条长替代周期与对应证据", layout: "radial", selectedId: "N01", visibleNodes: ["N01", "N02", "N03", "N04", "N05", "N12"], visibleKinds: ["supply", "research"], callout: "集中度与替代周期共同构成供应韧性风险。" },
-      { id: "SC06", title: "投委会 02 · 资本穿透", subtitle: "引导基金经嘉序资本连接关键能力", layout: "layered", selectedId: "N11", visibleNodes: ["N01", "N05", "N07", "N10", "N11", "N17", "N18"], visibleKinds: ["capital", "governance", "delivery"], callout: "资本路径不自动等同于实际控制。" },
-      { id: "SC07", title: "投委会 03 · 证据缺口", subtitle: "区分已核验事实与待复核推断", layout: "layered", selectedId: "N10", visibleNodes: ["N05", "N10", "N11", "N16"], visibleKinds: ["capital", "governance"], callout: "18% 直接持股不足以单独支持实际控制结论。" },
+      { id: "SC05", title: "IC 01 · Upstream dependency", subtitle: "Three long replacement cycles and their evidence", layout: "radial", selectedId: "N01", visibleNodes: ["N01", "N02", "N03", "N04", "N05", "N12"], visibleKinds: ["supply", "research"], callout: "Concentration and replacement time jointly create supply-resilience risk." },
+      { id: "SC06", title: "IC 02 · Capital pathways", subtitle: "The guidance fund connects to critical capabilities through Jiaxu Capital", layout: "layered", selectedId: "N11", visibleNodes: ["N01", "N05", "N07", "N10", "N11", "N17", "N18"], visibleKinds: ["capital", "governance", "delivery"], callout: "A capital path does not automatically establish effective control." },
+      { id: "SC07", title: "IC 03 · Evidence gaps", subtitle: "Separate verified facts from unreviewed inference", layout: "layered", selectedId: "N10", visibleNodes: ["N05", "N10", "N11", "N16"], visibleKinds: ["capital", "governance"], callout: "An 18% direct stake does not independently establish effective control." },
     ];
     setScenes((current) => [...current.filter((scene) => !additions.some((item) => item.id === scene.id)), ...additions]);
     setPendingAction(null);
-    setChatMessages((current) => [...current, { id: "A-" + Date.now(), role: "assistant", body: "3 个投委会镜头已保存到右侧底部。它们只记录视图与叙事，不修改任何实体、关系或证据。", plan: { id: "AP-05C", title: "投委会镜头已保存", risk: "R2", status: "saved", steps: ["保存上游依赖", "保存资本穿透", "保存证据缺口"], impact: "新增 3 个本地镜头" } }]);
+    setChatMessages((current) => [...current, { id: "A-" + Date.now(), role: "assistant", body: "Three investment committee scenes were saved to the strip below. They record only the view and narrative; no entity, relationship, or evidence was changed.", plan: { id: "AP-05C", title: "Investment committee scenes saved", risk: "R2", status: "saved", steps: ["Save upstream dependency", "Save capital pathways", "Save evidence gaps"], impact: "3 local scenes added" } }]);
     setNotice("3 LOCAL INVESTMENT COMMITTEE SCENES SAVED");
   };
 
@@ -1286,13 +1286,13 @@ export default function Home() {
     const number = scenes.length + 1;
     const scene: DemoScene = {
       id: "SC" + String(number).padStart(2, "0"),
-      title: "自定义研判镜头 " + number,
-      subtitle: visibleNodes.length + " 个实体 · " + visibleEdges.length + " 条关系",
+      title: "Custom analysis scene " + number,
+      subtitle: visibleNodes.length + " entities · " + visibleEdges.length + " relationships",
       layout: layoutMode,
       selectedId: selectedId ?? visibleNodes[0]?.id ?? nodes[0]?.id ?? "",
       visibleNodes: sceneNodeIds ?? visibleNodes.map((node) => node.id),
       visibleKinds: visibleEdgeKinds,
-      callout: "已保存当前筛选、布局与焦点。",
+      callout: "Current filters, layout, and focus saved.",
     };
     setScenes((current) => [...current, scene]);
     setActiveSceneId(scene.id);
@@ -1304,7 +1304,7 @@ export default function Home() {
       schemaVersion: 1,
       kind: "relationship-studio-project",
       synthetic: true,
-      title: "东澜新能源产业生态研判",
+      title: "Donglan New Energy Ecosystem Review",
       asOf: "2026-03-31",
       graph: { nodes, edges },
       scenes,
@@ -1338,7 +1338,7 @@ export default function Home() {
     }
     try {
       const result = parseImportedGraph(file.name, await file.text());
-      if (!result.nodes.length || !result.edges.length) throw new Error("文件中没有可显示的关系");
+      if (!result.nodes.length || !result.edges.length) throw new Error("The file contains no displayable relationships");
       setNodes(applyLayout(result.nodes, result.edges, "force", result.nodes[0].id));
       setEdges(result.edges);
       setSelectedId(result.nodes[0].id);
@@ -1355,12 +1355,12 @@ export default function Home() {
       setChatMessages((current) => [...current, {
         id: "A-IMPORT-" + Date.now(),
         role: "assistant",
-        body: `已在浏览器本地导入 ${result.nodes.length} 个实体和 ${result.edges.length} 条关系。导入内容尚未核验，我不会把它自动标记为事实；你现在可以用对话继续探索。`,
-        plan: { id: "AP-IMPORT", title: "本地数据导入", risk: "R1", status: "applied", steps: ["解析文件", "校验端点", "生成稳定布局"], impact: `${result.nodes.length} 个实体 · ${result.edges.length} 条关系` },
+        body: `Imported ${result.nodes.length} entities and ${result.edges.length} relationships locally in your browser. The imported content is unverified and will not be treated as fact automatically; you can now explore it through the conversation.`,
+        plan: { id: "AP-IMPORT", title: "Local data import", risk: "R1", status: "applied", steps: ["Parse file", "Validate endpoints", "Generate stable layout"], impact: `${result.nodes.length} entities · ${result.edges.length} relationships` },
       }]);
       setNotice("LOCAL IMPORT COMPLETE · " + result.nodes.length + " ENTITIES · " + result.edges.length + " RELATIONS");
     } catch (error) {
-      setNotice("IMPORT FAILED · " + (error instanceof Error ? error.message : "无法解析文件"));
+      setNotice("IMPORT FAILED · " + (error instanceof Error ? error.message : "Unable to parse file"));
     } finally {
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
@@ -1381,51 +1381,51 @@ export default function Home() {
       <header className="studio-topbar">
         <div className="studio-brand">
           <span className="brand-symbol">VA</span>
-          <span className="brand-copy"><strong>关系洞察 Agent</strong><small>CHAT × VISUAL INTELLIGENCE</small></span>
+          <span className="brand-copy"><strong>RELOSCOPE</strong><small>CHAT × VISUAL INTELLIGENCE</small></span>
         </div>
         <div className="project-identity">
           <span className="project-dot" />
-          <div><strong>东澜新能源产业生态研判</strong><small>PROJECT / DL-NE-2026-03 · 信息截止 2026-03-31</small></div>
+          <div><strong>Donglan New Energy Ecosystem Review</strong><small>PROJECT / DL-NE-2026-03 · AS OF 2026-03-31</small></div>
         </div>
-        <nav className="studio-tabs" aria-label="工作区导航">
-          <button type="button" className="active">Agent 工作台</button>
+        <nav className="studio-tabs" aria-label="Workspace navigation">
+          <button type="button" className="active">Agent Workspace</button>
           <button type="button" onClick={() => {
             setInspectorTab("evidence");
             if (!selectedEdgeId) setSelectedEdgeId(connectedEdges[0]?.id ?? null);
-          }}>证据链</button>
-          <button type="button" onClick={() => document.querySelector(".scene-strip")?.scrollIntoView({ behavior: "smooth" })}>叙事镜头</button>
+          }}>Evidence</button>
+          <button type="button" onClick={() => document.querySelector(".scene-strip")?.scrollIntoView({ behavior: "smooth" })}>Scenes</button>
         </nav>
         <div className="top-actions">
-          <span className="demo-badge">完全虚构数据 · 演示环境</span>
+          <span className="demo-badge">SYNTHETIC DATA · DEMO ONLY</span>
           <select value={accessRole} onChange={(event) => {
             setAccessRole(event.target.value as AccessRole);
             setNotice("ACCESS VIEW CHANGED · " + event.target.value);
-          }} aria-label="切换演示权限">
-            <option>分析成员</option>
-            <option>外部顾问</option>
-            <option>管理层只读</option>
+          }} aria-label="Switch demo access role">
+            <option>Analyst</option>
+            <option>External Counsel</option>
+            <option>Executive Viewer</option>
           </select>
-          <button type="button" className="quiet-action" onClick={() => submitAgentPrompt("把当前分析整理成投委会镜头")}>生成镜头</button>
-          <button type="button" className="quiet-action" onClick={shareScene}>复制镜头链接</button>
+          <button type="button" className="quiet-action" onClick={() => submitAgentPrompt("Turn this analysis into investment committee scenes")}>Generate Scenes</button>
+          <button type="button" className="quiet-action" onClick={shareScene}>Copy Scene Link</button>
           <div className="export-wrap">
-            <button type="button" className="primary-action" onClick={() => setExportOpen((value) => !value)}>导出 <span>⌄</span></button>
+            <button type="button" className="primary-action" onClick={() => setExportOpen((value) => !value)}>Export <span>⌄</span></button>
             {exportOpen && (
               <div className="export-menu">
-                <button type="button" onClick={() => { canvasRef.current?.exportPng(); setNotice("CURRENT SCENE EXPORTED · PNG"); setExportOpen(false); }}><span>PNG</span><small>当前镜头高清图</small></button>
-                <button type="button" onClick={() => { canvasRef.current?.exportSvg(); setNotice("CURRENT PROJECTION EXPORTED · SVG"); setExportOpen(false); }}><span>SVG</span><small>可编辑矢量投影</small></button>
-                <button type="button" onClick={exportProject}><span>JSON</span><small>完整项目与镜头</small></button>
+                <button type="button" onClick={() => { canvasRef.current?.exportPng(); setNotice("CURRENT SCENE EXPORTED · PNG"); setExportOpen(false); }}><span>PNG</span><small>High-resolution current scene</small></button>
+                <button type="button" onClick={() => { canvasRef.current?.exportSvg(); setNotice("CURRENT PROJECTION EXPORTED · SVG"); setExportOpen(false); }}><span>SVG</span><small>Editable vector projection</small></button>
+                <button type="button" onClick={exportProject}><span>JSON</span><small>Complete project and scenes</small></button>
               </div>
             )}
           </div>
         </div>
       </header>
 
-      <section className="kpi-rail" aria-label="项目摘要">
-        <div><span>生态主体</span><strong>{nodes.length}</strong><em>ENTITIES</em></div>
-        <div><span>关系断言</span><strong>{edges.length}</strong><em>RELATIONS</em></div>
-        <div><span>已核验</span><strong>{verifiedCount}</strong><em>VERIFIED</em></div>
-        <div><span>待复核</span><strong className="warning-value">{reviewCount}</strong><em>REVIEW</em></div>
-        <p>每条关系，都能回到证据。<small>模型建议不等于已核实事实，发布前须由授权人员复核。</small></p>
+      <section className="kpi-rail" aria-label="Project summary">
+        <div><span>Entities</span><strong>{nodes.length}</strong><em>ENTITIES</em></div>
+        <div><span>Assertions</span><strong>{edges.length}</strong><em>RELATIONS</em></div>
+        <div><span>Verified</span><strong>{verifiedCount}</strong><em>VERIFIED</em></div>
+        <div><span>In review</span><strong className="warning-value">{reviewCount}</strong><em>REVIEW</em></div>
+        <p>Ask the graph. Verify the evidence.<small>Model suggestions are not verified facts. Authorized review is required before publication.</small></p>
       </section>
 
       <section className="studio-workspace">
@@ -1434,8 +1434,8 @@ export default function Home() {
             <header>
               <div><span className="agent-orb">VA</span><span><strong>Visual Analyst</strong><small>DEMO AGENT · LOCAL ORCHESTRATION</small></span></div>
               <div className="agent-header-actions">
-                {visualHistory.length > 0 && <button type="button" onClick={undoVisual} title={visualHistory.at(-1)?.label}>↶ 撤销</button>}
-                <button type="button" aria-label="新建对话" onClick={() => {
+                {visualHistory.length > 0 && <button type="button" onClick={undoVisual} title={visualHistory.at(-1)?.label}>↶ Undo</button>}
+                <button type="button" aria-label="Start a new conversation" onClick={() => {
                   setChatMessages([INITIAL_CHAT[0]]);
                   setPendingAction(null);
                   setChatDraft("");
@@ -1443,18 +1443,18 @@ export default function Home() {
               </div>
             </header>
             <div className="agent-preview-thread" ref={chatThreadRef}>
-              <div className="agent-thread-label"><span>调查会话 / DL-NE-2026-03</span><em>{chatMessages.length} MESSAGES</em></div>
+              <div className="agent-thread-label"><span>INVESTIGATION / DL-NE-2026-03</span><em>{chatMessages.length} MESSAGES</em></div>
               {chatMessages.map((message) => (
                 message.role === "context" ? (
                   <div className="context-event" key={message.id}><span>◎</span><p>{message.body}</p></div>
                 ) : (
                   <article className={cx("chat-message", message.role)} key={message.id}>
-                    <span>{message.role === "user" ? "你" : "VA"}</span>
+                    <span>{message.role === "user" ? "YOU" : "VA"}</span>
                     <div className="message-body">
                       <p>{message.body}</p>
                       {message.plan && (
                         <div className={cx("mini-plan", message.plan.status)}>
-                          <header><small>ACTION PLAN · {message.plan.risk}</small><span>{message.plan.status === "applied" ? "已执行" : message.plan.status === "preview" ? "待确认" : message.plan.status === "saved" ? "已保存" : "已阻止"}</span></header>
+                          <header><small>ACTION PLAN · {message.plan.risk}</small><span>{message.plan.status === "applied" ? "APPLIED" : message.plan.status === "preview" ? "AWAITING APPROVAL" : message.plan.status === "saved" ? "SAVED" : "BLOCKED"}</span></header>
                           <strong>{message.plan.title}</strong>
                           <div className="plan-steps">
                             {message.plan.steps.map((step, index) => <span key={step}><i>{index + 1}</i>{step}</span>)}
@@ -1483,15 +1483,15 @@ export default function Home() {
                   </article>
                 )
               ))}
-              {agentBusy && <div className="agent-thinking"><span>VA</span><div><i /><i /><i /></div><p>正在读取当前图与证据…</p></div>}
+              {agentBusy && <div className="agent-thinking"><span>VA</span><div><i /><i /><i /></div><p>Reading the current graph and evidence…</p></div>}
               {pendingAction && (
                 <section className={cx("approval-card", pendingAction.kind === "relation-change" && "blocked")}>
-                  <header><span>{pendingAction.kind === "relation-change" ? "WRITE BLOCKED" : "APPROVAL REQUIRED"}</span><em>{pendingAction.kind === "relation-change" ? "R2 · 证据不足" : "R2 · 本地持久化"}</em></header>
+                  <header><span>{pendingAction.kind === "relation-change" ? "WRITE BLOCKED" : "APPROVAL REQUIRED"}</span><em>{pendingAction.kind === "relation-change" ? "R2 · INSUFFICIENT EVIDENCE" : "R2 · LOCAL PERSISTENCE"}</em></header>
                   <strong>{pendingAction.title}</strong>
                   <p>{pendingAction.description}</p>
                   <footer>
-                    <button type="button" onClick={() => setPendingAction(null)}>取消</button>
-                    <button type="button" className="approve-action" onClick={confirmPendingAgentAction}>{pendingAction.kind === "relation-change" ? "保留原关系" : "确认保存 3 个镜头"}</button>
+                    <button type="button" onClick={() => setPendingAction(null)}>Cancel</button>
+                    <button type="button" className="approve-action" onClick={confirmPendingAgentAction}>{pendingAction.kind === "relation-change" ? "Keep Original" : "Save 3 Scenes"}</button>
                   </footer>
                 </section>
               )}
@@ -1500,9 +1500,9 @@ export default function Home() {
               <div className="quick-prompts">
                 {QUICK_PROMPTS.map((prompt) => <button type="button" key={prompt} onClick={() => submitAgentPrompt(prompt)} disabled={agentBusy}>{prompt}</button>)}
               </div>
-              <div className="context-chip">◎ 当前上下文：{selectedEdge ? `${selectedEdge.id} · ${selectedEdge.label}` : selectedNode ? `${selectedNode.id} · ${selectedNode.name}` : "完整图谱"}</div>
+              <div className="context-chip">◎ ACTIVE CONTEXT: {selectedEdge ? `${selectedEdge.id} · ${selectedEdge.label}` : selectedNode ? `${selectedNode.id} · ${selectedNode.name}` : "FULL GRAPH"}</div>
               <div className="agent-composer">
-                <button type="button" aria-label="导入数据" onClick={() => setImportOpen(true)}>＋</button>
+                <button type="button" aria-label="Import data" onClick={() => setImportOpen(true)}>＋</button>
                 <textarea
                   value={chatDraft}
                   onChange={(event) => setChatDraft(event.target.value)}
@@ -1512,18 +1512,18 @@ export default function Home() {
                       submitAgentPrompt();
                     }
                   }}
-                  placeholder="调查、解释或修改这张关系图…"
-                  aria-label="向 Visual Analyst 提问"
+                  placeholder="Investigate, explain, or modify this graph…"
+                  aria-label="Ask Visual Analyst"
                 />
                 <button type="button" className="send-command" onClick={() => submitAgentPrompt()} disabled={!chatDraft.trim() || agentBusy}>↗</button>
               </div>
-              <small>Enter 发送 · Shift + Enter 换行 · 只读分析自动执行，写入先预览</small>
+              <small>Enter to send · Shift + Enter for a new line · Read-only actions auto-run; writes are previewed first</small>
             </footer>
           </section>
           <section className="ai-command-card">
-            <div className="section-heading"><span>AI 视觉指令</span><em>HUMAN IN CONTROL</em></div>
-            <textarea value={aiPrompt} onChange={(event) => setAiPrompt(event.target.value)} aria-label="AI 视觉指令" />
-            <button type="button" onClick={runAiCommand}><span>生成视图</span><b>↗</b></button>
+            <div className="section-heading"><span>AI Visual Command</span><em>HUMAN IN CONTROL</em></div>
+            <textarea value={aiPrompt} onChange={(event) => setAiPrompt(event.target.value)} aria-label="AI visual command" />
+            <button type="button" onClick={runAiCommand}><span>Generate View</span><b>↗</b></button>
             <div className="suggestion-list">
               {AI_SUGGESTIONS.map((suggestion) => (
                 <button type="button" key={suggestion} onClick={() => setAiPrompt(suggestion)}>{suggestion}</button>
@@ -1532,10 +1532,10 @@ export default function Home() {
           </section>
 
           <section className="panel-section">
-            <div className="section-heading"><span>搜索与定位</span><em>{searchHits.size || "ALL"}</em></div>
+            <div className="section-heading"><span>Search & Locate</span><em>{searchHits.size || "ALL"}</em></div>
             <label className="search-box">
               <span>⌕</span>
-              <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="实体、关系或字段…" />
+              <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Entity, relationship, or field…" />
               {query && <button type="button" onClick={() => setQuery("")}>×</button>}
             </label>
             {query && (
@@ -1544,28 +1544,28 @@ export default function Home() {
                   const node = nodeById.get(id);
                   return node ? <button type="button" key={id} onClick={() => selectNode(id)}><i style={{ background: NODE_META[node.kind].color }} /><span>{node.name}</span><em>{node.id}</em></button> : null;
                 })}
-                {searchHits.size === 0 && <p>没有匹配的实体</p>}
+                {searchHits.size === 0 && <p>No matching entities</p>}
               </div>
             )}
           </section>
 
           <section className="panel-section">
-            <div className="section-heading"><span>数据源</span><em>{DEMO_SOURCES.length} FILES</em></div>
+            <div className="section-heading"><span>Sources</span><em>{DEMO_SOURCES.length} FILES</em></div>
             <div className="source-stack">
               {displayedSources.map((source) => (
                 <button type="button" key={source.id} onClick={() => setNotice(source.id + " · " + source.summary)}>
-                  <i>{source.type === "协议" ? "C" : source.type === "项目文件" ? "P" : "D"}</i>
+                  <i>{source.type === "Agreement" ? "C" : source.type === "Project File" ? "P" : "D"}</i>
                   <span><strong>{source.title.replaceAll("《", "").replaceAll("》", "")}</strong><small>{source.date} · {source.type}</small></span>
                   <em>↗</em>
                 </button>
               ))}
             </div>
-            <button type="button" className="panel-link" onClick={() => setSourceExpanded((value) => !value)}>{sourceExpanded ? "收起来源" : "查看全部 15 份来源"} <span>→</span></button>
-            <button type="button" className="import-button" onClick={() => setImportOpen(true)}>＋ 导入本地数据</button>
+            <button type="button" className="panel-link" onClick={() => setSourceExpanded((value) => !value)}>{sourceExpanded ? "Collapse Sources" : "View All 15 Sources"} <span>→</span></button>
+            <button type="button" className="import-button" onClick={() => setImportOpen(true)}>＋ Import Local Data</button>
           </section>
 
           <section className="panel-section filter-section">
-            <div className="section-heading"><span>主体类型</span><em>{visibleNodeKinds.length}/{ALL_NODE_KINDS.length}</em></div>
+            <div className="section-heading"><span>Entity Types</span><em>{visibleNodeKinds.length}/{ALL_NODE_KINDS.length}</em></div>
             <div className="filter-grid">
               {ALL_NODE_KINDS.map((kind) => (
                 <button type="button" key={kind} className={cx(visibleNodeKinds.includes(kind) && "active")} onClick={() => toggleNodeKind(kind)}>
@@ -1576,7 +1576,7 @@ export default function Home() {
           </section>
 
           <section className="panel-section relation-filter-section">
-            <div className="section-heading"><span>关系图层</span><em>{visibleEdgeKinds.length}/{ALL_EDGE_KINDS.length}</em></div>
+            <div className="section-heading"><span>Relationship Layers</span><em>{visibleEdgeKinds.length}/{ALL_EDGE_KINDS.length}</em></div>
             <div className="relation-filter-list">
               {ALL_EDGE_KINDS.map((kind) => {
                 const count = edges.filter((edge) => edge.kind === kind).length;
@@ -1595,21 +1595,21 @@ export default function Home() {
 
         <section className="graph-stage">
           <div className="graph-controlbar">
-            <div className="control-group view-switch" role="group" aria-label="视图模式">
-              <button type="button" className={cx(viewMode === "3d" && "active")} onClick={() => setViewMode("3d")}><span>◈</span> 分析 3D</button>
-              <button type="button" className={cx(viewMode === "2d" && "active")} onClick={() => setViewMode("2d")}><span>◇</span> 汇报 2D</button>
+            <div className="control-group view-switch" role="group" aria-label="View mode">
+              <button type="button" className={cx(viewMode === "3d" && "active")} onClick={() => setViewMode("3d")}><span>◈</span> Analyze 3D</button>
+              <button type="button" className={cx(viewMode === "2d" && "active")} onClick={() => setViewMode("2d")}><span>◇</span> Present 2D</button>
             </div>
             <div className="control-divider" />
-            <div className="control-group layout-switch" role="group" aria-label="布局模式">
+            <div className="control-group layout-switch" role="group" aria-label="Layout mode">
               {(["force", "radial", "layered"] as LayoutMode[]).map((layout) => (
                 <button type="button" key={layout} className={cx(layoutMode === layout && "active")} onClick={() => changeLayout(layout)}>
-                  {layout === "force" ? "力导向" : layout === "radial" ? "径向" : "层级"}
+                  {layout === "force" ? "Force" : layout === "radial" ? "Radial" : "Layered"}
                 </button>
               ))}
             </div>
             <div className="graph-status"><span className="live-dot" /> LIVE GRAPH <em>{visibleNodes.length}N / {visibleEdges.length}E</em></div>
-            <button type="button" className="icon-button" onClick={clearPins} title="取消固定节点">PIN ×</button>
-            <button type="button" className="icon-button" onClick={() => canvasRef.current?.fit()} title="适配视图">FIT</button>
+            <button type="button" className="icon-button" onClick={clearPins} title="Release all pinned nodes">PIN ×</button>
+            <button type="button" className="icon-button" onClick={() => canvasRef.current?.fit()} title="Fit graph to view">FIT</button>
           </div>
 
           <RelationshipCanvas
@@ -1627,45 +1627,45 @@ export default function Home() {
           />
 
           {selectedEdge && (
-            <aside className="graph-evidence-drawer" aria-label="当前关系证据">
+            <aside className="graph-evidence-drawer" aria-label="Selected relationship evidence">
               <header>
                 <span>RELATION EVIDENCE</span>
-                <em className={selectedEdge.status}>{selectedEdge.status === "verified" ? "已核验" : "待复核"}</em>
+                <em className={selectedEdge.status}>{selectedEdge.status === "verified" ? "VERIFIED" : "IN REVIEW"}</em>
               </header>
               <div className="drawer-relation">
                 <small>{EDGE_META[selectedEdge.kind].label} · {selectedEdge.id}</small>
                 <strong>{nodeById.get(selectedEdge.source)?.name}<b>→</b>{nodeById.get(selectedEdge.target)?.name}</strong>
               </div>
-              <blockquote>“{accessRole === "外部顾问" ? "该证据继承自受限来源；当前角色只显示关系存在。" : selectedEdge.evidence}”</blockquote>
+              <blockquote>“{accessRole === "External Counsel" ? "This evidence inherits a restricted source policy; your current role can see only that the relationship exists." : selectedEdge.evidence}”</blockquote>
               <dl>
-                <div><dt>来源</dt><dd>{selectedEdge.sourceTitle}</dd></div>
-                <div><dt>定位</dt><dd>{selectedEdge.location}</dd></div>
-                <div><dt>证据</dt><dd>{selectedEdge.evidenceId}</dd></div>
+                <div><dt>Source</dt><dd>{selectedEdge.sourceTitle}</dd></div>
+                <div><dt>Location</dt><dd>{selectedEdge.location}</dd></div>
+                <div><dt>Evidence</dt><dd>{selectedEdge.evidenceId}</dd></div>
               </dl>
               <footer>
-                <button type="button" onClick={() => submitAgentPrompt(`解释关系 ${selectedEdge.id}，为什么它重要？`)}>在对话中解释</button>
-                <button type="button" onClick={() => setSelectedEdgeId(null)} aria-label="收起证据">收起</button>
+                <button type="button" onClick={() => submitAgentPrompt(`Explain relationship ${selectedEdge.id}. Why does it matter?`)}>Explain in Chat</button>
+                <button type="button" onClick={() => setSelectedEdgeId(null)} aria-label="Collapse evidence drawer">Collapse</button>
               </footer>
             </aside>
           )}
 
           <div className="canvas-guide">
-            <span>{viewMode === "3d" ? "拖动空白旋转" : "拖动空白平移"}</span>
-            <span>滚轮缩放</span>
-            <span>拖动实体固定位置</span>
-            <span>Shift + 拖动平移</span>
+            <span>{viewMode === "3d" ? "Drag background to orbit" : "Drag background to pan"}</span>
+            <span>Scroll to zoom</span>
+            <span>Drag entities to pin</span>
+            <span>Shift + drag to pan</span>
           </div>
           <div className="canvas-legend">
-            <span><i className="solid-line" />已核验</span>
-            <span><i className="dashed-line" />待复核</span>
-            <span><b>◆</b>资本机构</span>
-            <span><b>▣</b>战略项目</span>
+            <span><i className="solid-line" />Verified</span>
+            <span><i className="dashed-line" />In review</span>
+            <span><b>◆</b>Capital</span>
+            <span><b>▣</b>Project</span>
           </div>
           <div className="notice-toast"><span />{notice}</div>
 
           <div className="scene-strip">
             <div className="scene-strip-heading">
-              <span>叙事镜头</span>
+              <span>Analysis Scenes</span>
               <em>{scenes.length} SCENES · LOCAL VIEW PRESETS</em>
             </div>
             <div className="scene-list">
@@ -1677,16 +1677,16 @@ export default function Home() {
                   <em>{scene.id === activeSceneId ? "PLAYING" : "PLAY"}</em>
                 </button>
               ))}
-              <button type="button" className="add-scene" onClick={saveScene}><span>＋</span><strong>保存当前镜头</strong><small>记录布局、筛选与焦点</small></button>
+              <button type="button" className="add-scene" onClick={saveScene}><span>＋</span><strong>Save Current Scene</strong><small>Capture layout, filters, and focus</small></button>
             </div>
           </div>
         </section>
 
         <aside className="inspector-panel">
           <div className="inspector-tabs" role="tablist">
-            <button type="button" className={cx(inspectorTab === "entity" && "active")} onClick={() => setInspectorTab("entity")}>实体档案</button>
-            <button type="button" className={cx(inspectorTab === "evidence" && "active")} onClick={() => setInspectorTab("evidence")}>关系证据</button>
-            <button type="button" className={cx(inspectorTab === "analysis" && "active")} onClick={() => setInspectorTab("analysis")}>风险与推断</button>
+            <button type="button" className={cx(inspectorTab === "entity" && "active")} onClick={() => setInspectorTab("entity")}>Entity Profile</button>
+            <button type="button" className={cx(inspectorTab === "evidence" && "active")} onClick={() => setInspectorTab("evidence")}>Evidence</button>
+            <button type="button" className={cx(inspectorTab === "analysis" && "active")} onClick={() => setInspectorTab("analysis")}>Risk & Inference</button>
           </div>
 
           {selectedNode ? (
@@ -1700,17 +1700,17 @@ export default function Home() {
               {inspectorTab === "entity" && (
                 <div className="inspector-content">
                   <div className="verification-row">
-                    <span className={cx("status-pill", selectedNode.status)}>{selectedNode.status === "verified" ? "来源已核验" : selectedNode.status === "planned" ? "规划中" : "待复核"}</span>
-                    <em>{selectedNode.sources.length} 个来源</em>
+                    <span className={cx("status-pill", selectedNode.status)}>{selectedNode.status === "verified" ? "SOURCE VERIFIED" : selectedNode.status === "planned" ? "PLANNED" : "IN REVIEW"}</span>
+                    <em>{selectedNode.sources.length} sources</em>
                   </div>
                   <p className="entity-summary">{selectedNode.summary}</p>
                   <dl className="property-grid">
-                    <div><dt>关键指标</dt><dd>{selectedNode.metric}</dd></div>
-                    <div><dt>依赖等级</dt><dd className={cx("risk-text", selectedNode.risk)}>{selectedNode.risk === "high" ? "高" : selectedNode.risk === "medium" ? "中" : "低"}</dd></div>
-                    <div><dt>信息截止</dt><dd>2026-03-31</dd></div>
-                    <div><dt>可见范围</dt><dd>{accessRole}</dd></div>
+                    <div><dt>Key Metric</dt><dd>{selectedNode.metric}</dd></div>
+                    <div><dt>Dependency</dt><dd className={cx("risk-text", selectedNode.risk)}>{selectedNode.risk === "high" ? "High" : selectedNode.risk === "medium" ? "Medium" : "Low"}</dd></div>
+                    <div><dt>Information As Of</dt><dd>2026-03-31</dd></div>
+                    <div><dt>Visible To</dt><dd>{accessRole}</dd></div>
                   </dl>
-                  <div className="subheading"><span>直接连接</span><em>{connectedEdges.length}</em></div>
+                  <div className="subheading"><span>Direct Connections</span><em>{connectedEdges.length}</em></div>
                   <div className="connection-list">
                     {connectedEdges.map((edge) => {
                       const otherId = edge.source === selectedNode.id ? edge.target : edge.source;
@@ -1734,62 +1734,62 @@ export default function Home() {
                       <div className="relation-head">
                         <span style={{ color: EDGE_META[selectedEdge.kind].color }}>{EDGE_META[selectedEdge.kind].label}</span>
                         <strong>{nodeById.get(selectedEdge.source)?.name} <b>→</b> {nodeById.get(selectedEdge.target)?.name}</strong>
-                        <div><span className={cx("status-pill", selectedEdge.status)}>{selectedEdge.status === "verified" ? "来源已核对" : "模型建议 · 待复核"}</span><em>证据充分度 {Math.round(selectedEdge.confidence * 100)}%</em></div>
+                        <div><span className={cx("status-pill", selectedEdge.status)}>{selectedEdge.status === "verified" ? "SOURCE VERIFIED" : "MODEL SUGGESTION · REVIEW"}</span><em>Evidence strength {Math.round(selectedEdge.confidence * 100)}%</em></div>
                       </div>
                       <section className="evidence-card">
-                        <header><span>关系依据</span><em>{selectedEdge.evidenceId}</em></header>
+                        <header><span>Relationship Evidence</span><em>{selectedEdge.evidenceId}</em></header>
                         <h3>{selectedEdge.sourceTitle}</h3>
-                        <p className={cx(accessRole === "外部顾问" && "masked-evidence")}>
-                          {accessRole === "外部顾问"
-                            ? "该证据继承自受限来源；外部顾问视图已遮罩合同字段与原文片段。"
+                        <p className={cx(accessRole === "External Counsel" && "masked-evidence")}>
+                          {accessRole === "External Counsel"
+                            ? "This evidence inherits a restricted source policy. Contract fields and source excerpts are masked for External Counsel."
                             : "“" + selectedEdge.evidence + "”"}
                         </p>
                         <dl>
-                          <div><dt>定位</dt><dd>{selectedEdge.location}</dd></div>
-                          <div><dt>提取方式</dt><dd>规则提取 + 模型辅助</dd></div>
-                          <div><dt>权限</dt><dd>{accessRole === "外部顾问" ? "法务受限 · 已遮罩" : "项目成员"}</dd></div>
-                          <div><dt>内容哈希</dt><dd>DEMO-{stableHash(selectedEdge.evidence).toUpperCase()}</dd></div>
+                          <div><dt>Location</dt><dd>{selectedEdge.location}</dd></div>
+                          <div><dt>Extraction</dt><dd>Rules + model assistance</dd></div>
+                          <div><dt>Access</dt><dd>{accessRole === "External Counsel" ? "Legally restricted · Masked" : "Project member"}</dd></div>
+                          <div><dt>Demo Fingerprint</dt><dd>DEMO-{stableHash(selectedEdge.evidence).toUpperCase()}</dd></div>
                         </dl>
                         <footer>
-                          <button type="button" onClick={() => setNotice("SOURCE CONTEXT OPENED · SYNTHETIC DOCUMENT")}>查看上下文</button>
-                          <button type="button" onClick={() => setNotice("FIELD TRACE · " + selectedEdge.evidenceId)}>字段溯源</button>
+                          <button type="button" onClick={() => setNotice("SOURCE CONTEXT OPENED · SYNTHETIC DOCUMENT")}>View Context</button>
+                          <button type="button" onClick={() => setNotice("FIELD TRACE · " + selectedEdge.evidenceId)}>Trace Field</button>
                         </footer>
                       </section>
                       {selectedEdge.status === "review" && (
                         <div className="review-callout">
                           <span>!</span>
-                          <div><strong>此关系需要人工确认</strong><p>系统保留规划值与未完成验收，不自动写成已发生事实。</p></div>
-                          <button type="button" onClick={approveSelectedEdge}>批准为已核验</button>
+                          <div><strong>Human confirmation required</strong><p>Planned values and incomplete acceptance checks are preserved without being rewritten as observed facts.</p></div>
+                          <button type="button" onClick={approveSelectedEdge}>Approve as Verified</button>
                         </div>
                       )}
                       <div className="audit-line"><span>MODEL</span><strong>Extractor v2.4</strong><em>Prompt 08 · Schema 1.0</em></div>
-                      <div className="audit-line"><span>LAST REVIEW</span><strong>数据治理组</strong><em>2026-03-28 14:22</em></div>
+                      <div className="audit-line"><span>LAST REVIEW</span><strong>Data Governance Team</strong><em>2026-03-28 14:22</em></div>
                     </>
-                  ) : <div className="empty-inspector">选择一条关系查看字段级证据。</div>}
+                  ) : <div className="empty-inspector">Select a relationship to inspect field-level evidence.</div>}
                 </div>
               )}
 
               {inspectorTab === "analysis" && (
                 <div className="inspector-content analysis-content">
                   <div className="analysis-score">
-                    <span>网络关键性</span><strong>{selectedNode.id === "N01" ? "4.9" : selectedNode.risk === "high" ? "4.4" : "2.8"}</strong><em>/ 5.0</em>
+                    <span>Network Criticality</span><strong>{selectedNode.id === "N01" ? "4.9" : selectedNode.risk === "high" ? "4.4" : "2.8"}</strong><em>/ 5.0</em>
                     <div><i style={{ width: selectedNode.risk === "high" ? "92%" : "56%" }} /></div>
                   </div>
                   <div className="analysis-card">
-                    <span>派生观察</span>
-                    <h3>{selectedNode.id === "N01" ? "单核枢纽，也是潜在单点" : "需结合来源与替代路径人工判断"}</h3>
-                    <p>{selectedNode.id === "N01" ? "14 条直接关系跨越材料、控制系统、资本与项目交付；任一关键能力延期可能沿网络传导。" : selectedNode.summary}</p>
-                    <em>这是图结构派生观察，不代表事实结论。</em>
+                    <span>Derived Observation</span>
+                    <h3>{selectedNode.id === "N01" ? "A central hub—and a potential single point" : "Requires human judgment across sources and alternatives"}</h3>
+                    <p>{selectedNode.id === "N01" ? "Fourteen direct relationships span materials, controls, capital, and project delivery. A delay in any critical capability may propagate through the network." : selectedNode.summary}</p>
+                    <em>This observation is derived from graph structure; it is not a factual conclusion.</em>
                   </div>
                   <button type="button" className="scenario-button" onClick={() => {
                     setNotice("HYPOTHETICAL SCENARIO · NODE UNAVAILABLE FOR 7 DAYS");
                     setVisibleEdgeKinds(["supply", "delivery", "certification"]);
-                  }}>运行假设情景：节点不可用 7 天</button>
-                  <p className="analysis-warning">情景结果用于辅助讨论，不是预测，也不会自动触发业务决策。</p>
+                  }}>Run scenario: node unavailable for 7 days</button>
+                  <p className="analysis-warning">Scenario results support discussion. They are not predictions and do not trigger business decisions.</p>
                 </div>
               )}
             </>
-          ) : <div className="empty-inspector">在画布中选择实体，查看档案与证据。</div>}
+          ) : <div className="empty-inspector">Select an entity on the canvas to inspect its profile and evidence.</div>}
         </aside>
       </section>
 
@@ -1798,19 +1798,19 @@ export default function Home() {
           if (event.currentTarget === event.target) setImportOpen(false);
         }}>
           <section className="import-modal" role="dialog" aria-modal="true" aria-labelledby="import-title">
-            <header><div><span>LOCAL DATA IMPORT</span><h2 id="import-title">连接你的关系数据</h2><p>文件只在当前浏览器解析，不会上传到服务器。</p></div><button type="button" onClick={() => setImportOpen(false)}>×</button></header>
+            <header><div><span>LOCAL DATA IMPORT</span><h2 id="import-title">Connect Your Relationship Data</h2><p>Files are parsed in this browser and are not uploaded to a server.</p></div><button type="button" onClick={() => setImportOpen(false)}>×</button></header>
             <div className="connector-grid">
-              <button type="button" className="active" onClick={() => fileInputRef.current?.click()}><i>CSV</i><span><strong>CSV 关系表</strong><small>边列表 · 最大 10MB</small></span><em>选择文件</em></button>
-              <button type="button" className="active" onClick={() => fileInputRef.current?.click()}><i>{"{ }"}</i><span><strong>JSON 图项目</strong><small>nodes + edges / relations</small></span><em>选择文件</em></button>
-              <button type="button" onClick={() => setNotice("NEO4J CONNECTOR · PRODUCT ROADMAP")}><i>●</i><span><strong>Neo4j</strong><small>只读连接器</small></span><em>COMING</em></button>
-              <button type="button" onClick={() => setNotice("REST ADAPTER SDK · PRODUCT ROADMAP")}><i>↔</i><span><strong>REST / JSON API</strong><small>增量数据适配器</small></span><em>COMING</em></button>
+              <button type="button" className="active" onClick={() => fileInputRef.current?.click()}><i>CSV</i><span><strong>CSV Relationship Table</strong><small>Edge list · 10MB maximum</small></span><em>SELECT FILE</em></button>
+              <button type="button" className="active" onClick={() => fileInputRef.current?.click()}><i>{"{ }"}</i><span><strong>JSON Graph Project</strong><small>nodes + edges / relations</small></span><em>SELECT FILE</em></button>
+              <button type="button" onClick={() => setNotice("NEO4J CONNECTOR · PRODUCT ROADMAP")}><i>●</i><span><strong>Neo4j</strong><small>Read-only connector</small></span><em>COMING</em></button>
+              <button type="button" onClick={() => setNotice("REST ADAPTER SDK · PRODUCT ROADMAP")}><i>↔</i><span><strong>REST / JSON API</strong><small>Incremental data adapter</small></span><em>COMING</em></button>
             </div>
             <div className="import-schema">
-              <span>CSV 最小字段</span>
+              <span>Minimum CSV columns</span>
               <code>source_label, target_label, relation, evidence</code>
-              <small>可选：source_id, target_id, directed, confidence</small>
+              <small>Optional: source_id, target_id, directed, confidence</small>
             </div>
-            <footer><span>UTF-8 · 本地校验 · 导入失败不会覆盖当前图</span><button type="button" onClick={() => setImportOpen(false)}>取消</button><button type="button" className="primary-action" onClick={() => fileInputRef.current?.click()}>选择文件</button></footer>
+            <footer><span>UTF-8 · Local validation · Failed imports do not replace the current graph</span><button type="button" onClick={() => setImportOpen(false)}>Cancel</button><button type="button" className="primary-action" onClick={() => fileInputRef.current?.click()}>Select File</button></footer>
           </section>
         </div>
       )}

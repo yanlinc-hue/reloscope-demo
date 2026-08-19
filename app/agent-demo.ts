@@ -107,7 +107,7 @@ export interface AgentTurn {
 }
 
 export const AGENT_EXECUTION_POLICY =
-  "只读查询与视图动作自动执行；任何关系、项目或 Scene 写入都必须先预览，再由用户明确确认。";
+  "Read-only queries and view actions execute automatically. Any relationship, project, or scene write must be previewed and explicitly confirmed by the user.";
 
 const UPSTREAM_NODE_IDS = ["N01", "N02", "N03", "N04", "N05", "N12"];
 const UPSTREAM_EDGE_IDS = ["E01", "E02", "E03", "E04", "E05", "E18", "E19", "E20"];
@@ -130,36 +130,36 @@ const CAPITAL_EVIDENCE_IDS = [
 const SCENE_DRAFTS: SceneDraft[] = [
   {
     id: "DRAFT-IC-01",
-    title: "上游集中度与共享锂源",
-    subtitle: "霁川动力的锂盐、正极材料与 BMS 三类关键依赖",
+    title: "Upstream Concentration and Shared Lithium Supply",
+    subtitle: "Jichuan Power's three critical dependencies: lithium salts, cathode materials, and BMS",
     layout: "radial",
     selectedId: "N01",
     scopeNodeIds: [...UPSTREAM_NODE_IDS],
     edgeKinds: ["supply", "research"],
     highlightNodeIds: ["N02", "N03", "N05"],
     highlightEdgeIds: ["E01", "E02", "E03", "E05"],
-    callout: "岚芯 BMS 覆盖 62%，澄岳正极材料占 44%，星峪直接锂盐占 36%；星峪还供应澄岳 55% 的锂盐。不同口径比例不可相加。",
+    callout: "Lanxin BMS covers 62%, Chengyue cathode materials account for 44%, and Xingyu directly supplies 36% of lithium salts; Xingyu also supplies 55% of Chengyue's lithium salts. These percentages use different denominators and must not be added together.",
     evidenceIds: ["S01-C2", "S03-C1", "S03-C2", "S04-C1"],
     status: "draft",
   },
   {
     id: "DRAFT-IC-02",
-    title: "引导基金到项目的影响路径",
-    subtitle: "区分两跳关联路径与三跳有向资本—交付路径",
+    title: "Impact Paths from the Guidance Fund to Projects",
+    subtitle: "Distinguishing two-hop association paths from three-hop directed capital-to-delivery paths",
     layout: "layered",
     selectedId: "N11",
     scopeNodeIds: [...CAPITAL_NODE_IDS],
     edgeKinds: ["capital", "delivery"],
     highlightNodeIds: ["N11", "N10", "N01", "N05", "N17", "N18"],
     highlightEdgeIds: ["E11", "E12", "E13", "E26", "E28", "E30", "E31"],
-    callout: "N11—N01—N17/N18 是最短关联路径；N11→N10→N05→N17/N18 是严格有向路径。资本关联与共同技术节点均不等于实际控制。",
+    callout: "N11—N01—N17/N18 is the shortest association path; N11→N10→N05→N17/N18 is the strictly directed path. Neither capital ties nor shared technology nodes establish de facto control.",
     evidenceIds: ["S02-C2", "S08-C1", "S08-C2", "S12-C2", "S12-C4", "S13-C2", "S13-C3"],
     status: "draft",
   },
   {
     id: "DRAFT-IC-03",
-    title: "事实、推断与待补证边界",
-    subtitle: "把已核验持股、规划目标和未完成验收分开呈现",
+    title: "Boundaries Between Facts, Inferences, and Evidence Gaps",
+    subtitle: "Separating verified shareholdings, planned targets, and incomplete acceptance",
     layout: "force",
     selectedId: "N10",
     selectedEdgeId: "E13",
@@ -167,7 +167,7 @@ const SCENE_DRAFTS: SceneDraft[] = [
     edgeKinds: ["capital", "circular", "research", "certification"],
     highlightNodeIds: ["N10", "N05", "N08", "N03", "N18"],
     highlightEdgeIds: ["E13", "E09", "E20", "E32"],
-    callout: "E13 仅证明嘉序资本持有岚芯智控 18%；E09、E20、E32 分别是回收目标、中试计划和未完成验收，均不得表述为已发生事实。",
+    callout: "E13 establishes only that Jiaxu Capital holds an 18% stake in Lanxin Control. E09, E20, and E32 respectively represent a recycling target, a pilot plan, and incomplete acceptance; none may be presented as a completed fact.",
     evidenceIds: ["S08-C1", "S07-C2", "S09-C2", "S13-C4"],
     status: "draft",
   },
@@ -194,15 +194,15 @@ function plan(
 function buildWelcomeTurn(): AgentTurn {
   return {
     assistant: assistant(
-      "我可以直接执行只读图探索：展开霁川动力上游、解释风险证据、穿透东澜产业引导基金路径，或生成三个投委会 Scene 草案。关系和 Scene 写入都会先给你预览并等待确认。",
+      "I can run read-only graph investigations directly: expand Jichuan Power's upstream network, explain risk evidence, trace paths from the Donglan Industry Guidance Fund, or prepare three investment-committee scene drafts. Relationship and scene writes are always previewed and held for confirmation.",
     ),
     plan: plan({
       id: "AP-WELCOME",
       intent: "welcome",
-      title: "等待分析目标",
-      summary: "展示当前 Demo 支持的五类确定性任务。",
+      title: "Awaiting an Analysis Objective",
+      summary: "Present the five deterministic tasks supported by this demo.",
       execution: "read-only-auto",
-      steps: ["等待用户选择任务"],
+      steps: ["Wait for the user to select a task"],
       nodeIds: [],
       edgeIds: [],
       evidenceIds: [],
@@ -216,19 +216,19 @@ function buildWelcomeTurn(): AgentTurn {
 function buildUpstreamTurn(): AgentTurn {
   return {
     assistant: assistant(
-      "已展开霁川动力 N01 的两层上游：6 个实体、8 条供应或研发关系。星峪锂源 N02 既通过 E02 直接供货，也经 E01→E03 形成间接依赖。",
+      "Expanded two upstream hops from Jichuan Power N01: 6 entities and 8 supply or research relationships. Xingyu Lithium N02 supplies directly through E02 and also creates an indirect dependency through E01→E03.",
     ),
     plan: plan({
       id: "AP-UPSTREAM",
       intent: "upstream",
-      title: "展开霁川动力两层上游",
-      summary: "聚焦供应与研发网络，并以径向布局突出共同上游。",
+      title: "Expand Two Upstream Hops from Jichuan Power",
+      summary: "Focus on the supply and research network and use a radial layout to expose shared upstream dependencies.",
       execution: "read-only-auto",
       steps: [
-        "以 N01 为根节点展开两层关系",
-        "仅保留 supply 与 research",
-        "高亮 N02、N03、N05",
-        "应用 radial 布局",
+        "Expand two relationship hops from root node N01",
+        "Retain only supply and research relationships",
+        "Highlight N02, N03, and N05",
+        "Apply the radial layout",
       ],
       nodeIds: [...UPSTREAM_NODE_IDS],
       edgeIds: [...UPSTREAM_EDGE_IDS],
@@ -251,18 +251,18 @@ function buildUpstreamTurn(): AgentTurn {
 function buildRiskEvidenceTurn(): AgentTurn {
   return {
     assistant: assistant(
-      "高风险不是因为度数高，而是集中度与共享上游叠加：E05 显示岚芯 BMS 覆盖 62%，E03 显示澄岳正极材料占 44%，E02 显示星峪直接锂盐占 36%；E01 又显示星峪供应澄岳 55% 的锂盐。四个比例口径不同，不能相加。",
+      "The elevated risk does not come from node degree alone; it comes from the combination of concentration and a shared upstream dependency. E05 shows 62% Lanxin BMS coverage, E03 shows a 44% Chengyue cathode-material share, E02 shows a 36% direct Xingyu lithium-salt share, and E01 shows that Xingyu supplies 55% of Chengyue's lithium salts. These four percentages use different denominators and must not be added together.",
     ),
     plan: plan({
       id: "AP-RISK-EVIDENCE",
       intent: "risk-evidence",
-      title: "用字段级证据解释上游风险",
-      summary: "对照集中度、共享上游和待复核状态，不把结构观察写成事实。",
+      title: "Explain Upstream Risk with Field-Level Evidence",
+      summary: "Compare concentration, shared upstream exposure, and review status without presenting structural observations as verified facts.",
       execution: "read-only-auto",
       steps: [
-        "聚焦 E01、E02、E03、E05",
-        "打开 S01-C2、S03-C1、S03-C2、S04-C1",
-        "标注 N02、N03、N05 的依赖角色",
+        "Focus on E01, E02, E03, and E05",
+        "Open S01-C2, S03-C1, S03-C2, and S04-C1",
+        "Label the dependency roles of N02, N03, and N05",
       ],
       nodeIds: [...UPSTREAM_NODE_IDS],
       edgeIds: ["E01", "E02", "E03", "E05"],
@@ -270,7 +270,7 @@ function buildRiskEvidenceTurn(): AgentTurn {
       autoExecute: true,
       requiresConfirmation: false,
       blocked: false,
-      warning: "36%、44%、55% 与 62% 分属不同采购或覆盖口径，禁止求和。",
+      warning: "The 36%, 44%, 55%, and 62% figures use different procurement or coverage denominators and must not be added together.",
     }),
     viewIntent: {
       mode: "3d",
@@ -287,19 +287,19 @@ function buildRiskEvidenceTurn(): AgentTurn {
 function buildCapitalPathTurn(): AgentTurn {
   return {
     assistant: assistant(
-      "已找到两类路径：最短关联路径为 N11—N01—N17/N18；严格有向路径为 N11→N10→N05→N17/N18，N11→N10→N07→N18 是储能补充分支。N05 是共同技术节点，但现有证据不支持称为共同控制。",
+      "Found two path classes: the shortest association path is N11—N01—N17/N18; the strictly directed path is N11→N10→N05→N17/N18, with N11→N10→N07→N18 as an additional energy-storage branch. N05 is a shared technology node, but the available evidence does not support a finding of common control.",
     ),
     plan: plan({
       id: "AP-CAPITAL-PATH",
       intent: "capital-path",
-      title: "穿透产业基金到两个项目",
-      summary: "并列展示无向最短关联路径和严格有向资本—交付路径。",
+      title: "Trace the Industry Fund to Both Projects",
+      summary: "Show the undirected shortest association path alongside the strictly directed capital-to-delivery path.",
       execution: "read-only-auto",
       steps: [
-        "以 N11 为起点查找 N17、N18",
-        "比较无向最短路径与有向语义路径",
-        "标记 N10 为资本平台、N05 为共同技术节点",
-        "应用 layered 布局",
+        "Find paths from N11 to N17 and N18",
+        "Compare the undirected shortest path with the directed semantic path",
+        "Identify N10 as the capital platform and N05 as the shared technology node",
+        "Apply the layered layout",
       ],
       nodeIds: [...CAPITAL_NODE_IDS],
       edgeIds: [...CAPITAL_EDGE_IDS],
@@ -307,7 +307,7 @@ function buildCapitalPathTurn(): AgentTurn {
       autoExecute: true,
       requiresConfirmation: false,
       blocked: false,
-      warning: "持股、供应与项目交付关系只能证明关联或影响路径，不能自动推出实际控制。",
+      warning: "Equity, supply, and project-delivery relationships establish associations or influence paths; they do not, by themselves, establish de facto control.",
     }),
     viewIntent: {
       mode: "2d",
@@ -325,41 +325,46 @@ function buildBlockedControlChangeTurn(context: AgentContext): AgentTurn {
     before: {
       edgeId: "E13",
       kind: "capital",
-      label: "直接持股 18%",
+      label: "Direct 18% equity stake",
       status: "verified",
     },
     requested: {
       edgeId: "E13",
       kind: "governance",
-      label: "实际控制",
+      label: "De facto control",
       status: "verified",
     },
     supportedAlternative: {
       edgeId: "E13",
       kind: "governance",
-      label: "治理影响 · 待复核",
+      label: "Governance influence · Pending review",
       status: "review",
     },
     evidenceIds: ["S08-C1"],
-    conflict: "S08-C1 仅证明嘉序资本 N10 持有岚芯智控 N05 18% 股权，未证明控制权。",
-    requiredEvidence: ["表决权安排", "董事席位或任免权", "一致行动协议", "正式控制权认定"],
+    conflict: "S08-C1 establishes only that Jiaxu Capital N10 holds an 18% equity stake in Lanxin Control N05; it does not establish control rights.",
+    requiredEvidence: [
+      "Voting-right arrangements",
+      "Board seats or appointment and removal rights",
+      "Acting-in-concert agreement",
+      "Formal determination of control",
+    ],
   };
 
   return {
     assistant: assistant(
-      "修改已被阻止，正式图没有变化。S08-C1 只支持 E13“直接持股 18%”，不足以改成“实际控制”或继续标为已核验。请补充表决权、董事席位、一致行动安排或正式控制权认定；也可预览“治理影响·待复核”的合规替代方案。",
+      "The requested change has been blocked, and the authoritative graph is unchanged. S08-C1 supports only E13, ‘Direct 18% equity stake’; it is insufficient to change the relationship to ‘De facto control’ or retain verified status. Provide evidence of voting rights, board representation, acting-in-concert arrangements, or a formal control determination. Alternatively, preview the compliant ‘Governance influence · Pending review’ option.",
     ),
     plan: plan({
       id: "AP-BLOCK-CONTROL",
       intent: "blocked-control-change",
-      title: "审查 E13 实际控制修改请求",
-      summary: "展示差异，但在证据充分前阻止关系类型和核验状态写入。",
+      title: "Review the Requested E13 Control Change",
+      summary: "Show the proposed difference, but block changes to relationship type and verification status until sufficient evidence is available.",
       execution: "blocked-evidence-required",
       steps: [
-        "读取 E13 当前关系与 S08-C1",
-        "预览 capital→governance 与标签变更",
-        "执行证据充分性检查",
-        "阻止正式写入并列出补证要求",
+        "Read the current E13 relationship and S08-C1",
+        "Preview the capital→governance and label changes",
+        "Run the evidence-sufficiency check",
+        "Block the authoritative write and list the required evidence",
       ],
       nodeIds: ["N10", "N05"],
       edgeIds: ["E13"],
@@ -367,7 +372,7 @@ function buildBlockedControlChangeTurn(context: AgentContext): AgentTurn {
       autoExecute: false,
       requiresConfirmation: true,
       blocked: true,
-      warning: "普通确认不能绕过证据要求。补证通过后仍须重新预览并确认。",
+      warning: "Standard confirmation cannot override the evidence requirement. After sufficient evidence is provided, the change must still be previewed and confirmed again.",
     }),
     viewIntent: {
       mode: "2d",
@@ -384,7 +389,7 @@ function buildBlockedControlChangeTurn(context: AgentContext): AgentTurn {
       status: "blocked",
       expectedGraphRevision: context.graphRevision ?? "demo-r1",
       requiresConfirmation: true,
-      preview: "E13：直接持股 18% / verified → 实际控制 / verified（因证据不足已阻止）",
+      preview: "E13: Direct 18% equity stake / verified → De facto control / verified (blocked due to insufficient evidence)",
       relationChange,
     },
   };
@@ -402,19 +407,19 @@ function buildInvestmentScenesTurn(context: AgentContext): AgentTurn {
 
   return {
     assistant: assistant(
-      "已生成三个投委会 Scene 草案：上游集中度、基金到项目的影响路径、事实与待补证边界。关系数据没有变化；当前仅预览，确认后才会把三个 Scene 保存到项目。",
+      "Prepared three investment-committee scene drafts: upstream concentration, the fund-to-project impact path, and the boundary between facts and evidence gaps. Relationship data is unchanged. This is a preview only; the three scenes will be saved to the project only after confirmation.",
     ),
     plan: plan({
       id: "AP-INVESTMENT-SCENES",
       intent: "investment-scenes",
-      title: "生成三个投委会 Scene 草案",
-      summary: "把前述只读分析编排为可编辑、可连续播放的叙事镜头。",
+      title: "Prepare Three Investment-Committee Scene Drafts",
+      summary: "Arrange the preceding read-only analysis into editable narrative scenes that can be played in sequence.",
       execution: "preview-required",
       steps: [
-        "创建上游依赖 Scene 草案",
-        "创建资本穿透 Scene 草案",
-        "创建证据边界 Scene 草案",
-        "预览后等待用户确认保存",
+        "Create the upstream-dependency scene draft",
+        "Create the capital-path scene draft",
+        "Create the evidence-boundary scene draft",
+        "Preview the drafts and wait for confirmation before saving",
       ],
       nodeIds: Array.from(new Set(drafts.flatMap((scene) => scene.scopeNodeIds))),
       edgeIds: Array.from(new Set(drafts.flatMap((scene) => scene.highlightEdgeIds))),
@@ -422,7 +427,7 @@ function buildInvestmentScenesTurn(context: AgentContext): AgentTurn {
       autoExecute: false,
       requiresConfirmation: true,
       blocked: false,
-      warning: "预览不写入；保存、发布或覆盖既有 Scene 均需明确确认。",
+      warning: "Previewing does not write data. Saving, publishing, or overwriting an existing scene requires explicit confirmation.",
     }),
     viewIntent: {
       mode: "2d",
@@ -439,7 +444,7 @@ function buildInvestmentScenesTurn(context: AgentContext): AgentTurn {
       status: "awaiting-confirmation",
       expectedGraphRevision: context.graphRevision ?? "demo-r1",
       requiresConfirmation: true,
-      preview: "保存 DRAFT-IC-01、DRAFT-IC-02、DRAFT-IC-03；不修改任何节点或关系。",
+      preview: "Save DRAFT-IC-01, DRAFT-IC-02, and DRAFT-IC-03 without modifying any node or relationship.",
       scenes: drafts,
     },
     sceneDrafts: drafts,
@@ -448,20 +453,20 @@ function buildInvestmentScenesTurn(context: AgentContext): AgentTurn {
 
 function buildClarifyTurn(context: AgentContext): AgentTurn {
   const focus = context.selectedNodeId
-    ? `当前选中 ${context.selectedNodeId}。`
-    : "当前没有选中实体。";
+    ? `Currently selected: ${context.selectedNodeId}.`
+    : "No entity is currently selected.";
 
   return {
     assistant: assistant(
-      `${focus} 请明确要执行哪一类任务：展开 N01 上游、解释风险证据、查找 N11 到 N17/N18 的资本路径、审查 E13 修改，或生成三个投委会 Scene 草案。只读动作会自动执行，写入会先预览并等待确认。`,
+      `${focus} Specify the task to run: expand the upstream network from N01, explain the risk evidence, find capital paths from N11 to N17/N18, review the requested E13 change, or prepare three investment-committee scene drafts. Read-only actions execute automatically; writes are previewed and held for confirmation.`,
     ),
     plan: plan({
       id: "AP-CLARIFY",
       intent: "clarify",
-      title: "澄清分析目标",
-      summary: "输入未命中确定性 Demo 意图，不猜测用户希望修改的数据。",
+      title: "Clarify the Analysis Objective",
+      summary: "The input did not match a deterministic demo intent; do not guess which data the user wants to change.",
       execution: "read-only-auto",
-      steps: ["请求用户从五类演示任务中选择或补充目标实体"],
+      steps: ["Ask the user to select one of the five demo tasks or provide a target entity"],
       nodeIds: context.selectedNodeId ? [context.selectedNodeId] : [],
       edgeIds: context.selectedEdgeId ? [context.selectedEdgeId] : [],
       evidenceIds: [],
@@ -478,35 +483,62 @@ export function buildAgentTurn(
 ): AgentTurn {
   const normalized = normalizePrompt(prompt);
 
-  if (!normalized || includesAny(normalized, ["你好", "您好", "hello", "hi", "帮助", "能做什么"])) {
+  if (!normalized || includesAny(normalized, ["你好", "您好", "hello", "hi", "help", "what can you do", "帮助", "能做什么"])) {
     return buildWelcomeTurn();
   }
 
-  if (includesAny(normalized, ["实际控制", "控制权", "控股", "改成控制", "标为已核验"])) {
+  if (
+    normalized === "control" ||
+    normalized === "verified" ||
+    includesAny(normalized, [
+      "实际控制",
+      "控制权",
+      "控股",
+      "改成控制",
+      "标为已核验",
+      "de facto control",
+      "actual control",
+      "control rights",
+      "controlling stake",
+      "change to control",
+      "mark as verified",
+      "verified control",
+    ]) ||
+    (includesAny(normalized, ["control", "verified"]) &&
+      includesAny(normalized, ["e13", "change", "mark", "set", "relationship"]))
+  ) {
     return buildBlockedControlChangeTurn(context);
   }
 
   if (
-    includesAny(normalized, ["scene", "镜头", "投委会", "汇报"]) &&
-    includesAny(normalized, ["三个", "3个", "三张", "生成", "草案", "整理"])
+    normalized === "scene" ||
+    normalized === "scenes" ||
+    normalized === "investment committee" ||
+    includesAny(normalized, ["scene", "scenes", "investment committee", "镜头", "投委会", "汇报"]) &&
+    includesAny(normalized, ["three", "3", "generate", "create", "prepare", "draft", "drafts", "三个", "3个", "三张", "生成", "草案", "整理"])
   ) {
     return buildInvestmentScenesTurn(context);
   }
 
   if (
-    includesAny(normalized, ["产业基金", "引导基金", "资本", "嘉序"]) &&
-    includesAny(normalized, ["穿透", "路径", "项目", "影响", "最短"])
+    normalized === "capital path" ||
+    normalized === "fund" ||
+    includesAny(normalized, ["capital", "fund", "industry fund", "guidance fund", "产业基金", "引导基金", "资本", "嘉序"]) &&
+    includesAny(normalized, ["path", "paths", "trace", "project", "projects", "impact", "shortest", "穿透", "路径", "项目", "影响", "最短"])
   ) {
     return buildCapitalPathTurn();
   }
 
-  if (includesAny(normalized, ["风险", "证据", "依据", "为什么", "解释", "中心性"])) {
+  if (includesAny(normalized, ["risk", "evidence", "why", "explain", "centrality", "风险", "证据", "依据", "为什么", "解释", "中心性"])) {
     return buildRiskEvidenceTurn();
   }
 
   if (
-    includesAny(normalized, ["上游", "供应", "供应商", "研发"]) &&
-    includesAny(normalized, ["展开", "两层", "关系", "只看", "霁川"])
+    normalized === "upstream" ||
+    normalized === "supplier" ||
+    normalized === "suppliers" ||
+    includesAny(normalized, ["upstream", "supplier", "suppliers", "supply", "research", "上游", "供应", "供应商", "研发"]) &&
+    includesAny(normalized, ["expand", "show", "focus", "two-hop", "two hop", "two hops", "relationship", "relationships", "jichuan", "展开", "两层", "关系", "只看", "霁川"])
   ) {
     return buildUpstreamTurn();
   }
