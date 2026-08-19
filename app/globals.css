@@ -692,3 +692,53 @@ button:disabled { cursor: not-allowed; opacity: .48; }
   .studio-workspace { grid-template-columns: 330px minmax(390px, 1fr); }
   .graph-evidence-drawer { width: 250px; }
 }
+
+/* Chat readability pass */
+.studio-workspace { grid-template-columns: minmax(400px, 40fr) minmax(0, 60fr); }
+.agent-preview { grid-template-rows: 58px 1fr auto; }
+.agent-preview > header { padding-inline: 18px; }
+.agent-preview > header strong { font-size: 13px; letter-spacing: .01em; }
+.agent-preview > header small { font-size: 8px; line-height: 1.15; }
+.agent-preview > header .agent-header-actions button { font-size: 8px; }
+.agent-preview-thread { padding: 20px 20px 34px; }
+.agent-thread-label { margin-bottom: 20px; font-size: 8px; }
+.chat-message { grid-template-columns: 30px 1fr; gap: 12px; margin-bottom: 24px; }
+.chat-message > span { width: 26px; height: 26px; font-size: 8px; }
+.chat-message .message-body > p { margin-top: 1px; color: #c1ccca; font-size: 12px; line-height: 1.65; }
+.chat-message.user .message-body { max-width: 92%; padding: 11px 13px; }
+.mini-plan { margin-top: 13px; padding: 13px; gap: 9px; }
+.mini-plan small { font-size: 8px; }
+.mini-plan strong { font-size: 10px; line-height: 1.35; }
+.mini-plan em { font-size: 8px; line-height: 1.25; }
+.mini-plan > header span { padding: 4px 6px; font-size: 7px; }
+.plan-steps { gap: 6px; }
+.plan-steps span { gap: 5px; padding: 5px 7px; font-size: 8px; line-height: 1.3; }
+.plan-steps i { width: 14px; height: 14px; font-size: 7px; }
+.mini-plan .plan-note { padding-top: 9px; font-size: 8.5px; line-height: 1.55; }
+.evidence-chips { gap: 6px; margin-top: 10px; }
+.evidence-chips button { padding: 5px 8px; font-size: 8px; }
+.context-event { margin-left: 39px; padding: 9px 11px; }
+.context-event p { font-size: 8.5px; line-height: 1.6; }
+.scene-draft-list span { padding: 8px 10px; font-size: 8.5px; line-height: 1.45; }
+.agent-thinking p { font-size: 8.5px; }
+.approval-card { margin-left: 38px; padding: 14px; }
+.approval-card > header { font-size: 7.5px; }
+.approval-card > strong { font-size: 11px; }
+.approval-card > p { font-size: 9px; line-height: 1.6; }
+.approval-card > footer button { font-size: 8px; }
+.context-chip { padding: 6px 8px; font-size: 8px; }
+.quick-prompts { gap: 6px; margin-bottom: 9px; }
+.quick-prompts button { max-width: 220px; padding: 6px 9px; font-size: 8.5px; }
+.agent-composer { min-height: 76px; padding: 8px; }
+.agent-composer textarea { min-height: 56px; font-size: 12px; line-height: 1.6; }
+.agent-preview > footer { padding: 12px 17px 15px; }
+.agent-preview > footer > small { font-size: 8px; }
+
+@media (max-width: 1120px) {
+  .studio-workspace { grid-template-columns: minmax(370px, 43fr) minmax(0, 57fr); }
+}
+
+@media (max-width: 820px) {
+  .studio-app { min-width: 760px; }
+  .studio-workspace { grid-template-columns: 360px minmax(400px, 1fr); }
+}
