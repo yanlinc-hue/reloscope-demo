@@ -13,15 +13,18 @@ async function render() {
   );
 }
 
-test("server-renders the visual-intelligence studio demo", async () => {
+test("server-renders the chat-driven visual analyst demo", async () => {
   const response = await render();
   assert.equal(response.status, 200);
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
 
   const html = await response.text();
-  assert.match(html, /关系洞察/);
+  assert.match(html, /关系洞察 Agent/);
+  assert.match(html, /Visual Analyst/);
+  assert.match(html, /DEMO AGENT · LOCAL ORCHESTRATION/);
+  assert.match(html, /ACTION PLAN/);
+  assert.match(html, /上游依赖调查/);
   assert.match(html, /东澜新能源产业生态研判/);
   assert.match(html, /完全虚构数据/);
-  assert.match(html, /AI 视觉指令/);
   assert.doesNotMatch(html, /Your site is taking shape/);
 });
