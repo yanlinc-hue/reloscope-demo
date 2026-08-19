@@ -742,3 +742,145 @@ button:disabled { cursor: not-allowed; opacity: .48; }
   .studio-app { min-width: 760px; }
   .studio-workspace { grid-template-columns: 360px minmax(400px, 1fr); }
 }
+
+/* Chat hierarchy and evidence polish */
+.agent-preview-thread {
+  scrollbar-gutter: stable;
+}
+.agent-thread-label {
+  position: sticky;
+  z-index: 3;
+  top: -20px;
+  margin: -20px -20px 22px;
+  padding: 15px 20px 12px;
+  border-bottom: 1px solid rgba(213,230,232,.07);
+  background: linear-gradient(180deg, rgba(9,14,20,.98) 72%, rgba(9,14,20,.9));
+  color: #7d8d93;
+  backdrop-filter: blur(12px);
+}
+.agent-thread-label em { color: #68777e; }
+.agent-preview > header small,
+.agent-preview > footer > small,
+.agent-thread-label em { color: #708188; }
+
+.chat-message.assistant .message-body {
+  padding: 10px 12px 11px;
+  border-left: 2px solid rgba(104,216,206,.34);
+  background: linear-gradient(90deg, rgba(104,216,206,.055), rgba(104,216,206,0) 86%);
+}
+.chat-message.user { grid-template-columns: minmax(0, 1fr) 30px; }
+.chat-message.user > span { grid-column: 2; grid-row: 1; border-color: rgba(213,230,232,.2); }
+.chat-message.user .message-body {
+  grid-column: 1;
+  grid-row: 1;
+  justify-self: end;
+  max-width: 86%;
+  margin-left: 0;
+  border-color: rgba(213,230,232,.15);
+  background: rgba(213,230,232,.045);
+  overflow-wrap: anywhere;
+}
+.plan-steps span { color: #96a5a2; border-color: rgba(213,230,232,.12); }
+.mini-plan em,
+.agent-thinking p { color: #74858c; }
+.mini-plan .plan-note { color: #a39376; }
+.context-event p { color: #84938f; }
+.scene-draft-list span { color: #9ba9a6; }
+
+.agent-preview > header .agent-header-actions button,
+.quick-prompts button,
+.evidence-chips button,
+.approval-card > footer button {
+  min-height: 36px;
+}
+.quick-prompts button,
+.evidence-chips button,
+.approval-card > footer button { padding-inline: 11px; }
+.quick-prompts button {
+  border-color: rgba(213,230,232,.13);
+  color: #91a0a4;
+  background: rgba(255,255,255,.028);
+}
+.quick-prompts button:hover { background: rgba(104,216,206,.055); }
+.evidence-chips button { color: #8fc3bd; }
+.approval-card > footer button { height: 36px; color: #9aa8ab; }
+.agent-composer {
+  grid-template-columns: 36px minmax(0, 1fr) 36px;
+  border-color: rgba(213,230,232,.17);
+}
+.agent-composer > button { width: 36px; height: 36px; }
+.agent-composer textarea::placeholder { color: #708188; }
+.agent-preview button:focus-visible,
+.agent-composer textarea:focus-visible {
+  outline: 2px solid rgba(104,216,206,.72);
+  outline-offset: 2px;
+}
+
+.graph-evidence-drawer {
+  width: clamp(300px, 46%, 360px);
+  max-height: calc(100% - 148px);
+  padding: 16px;
+  overflow: auto;
+  border-color: rgba(213,230,232,.19);
+  background: rgba(8,13,18,.95);
+}
+.graph-evidence-drawer > header { color: #839399; font-size: 8px; }
+.graph-evidence-drawer > header em { padding: 5px 7px; }
+.drawer-relation { gap: 8px; margin-top: 15px; }
+.drawer-relation small { font-size: 8px; }
+.drawer-relation strong { gap: 9px; font-size: 12px; line-height: 1.35; }
+.drawer-relation b { color: #809097; }
+.graph-evidence-drawer blockquote {
+  margin: 15px 0;
+  padding: 11px 12px;
+  color: #a8b5b2;
+  font-size: 11px;
+  line-height: 1.6;
+}
+.graph-evidence-drawer dl { gap: 8px; }
+.graph-evidence-drawer dl div { grid-template-columns: 50px minmax(0, 1fr); gap: 9px; }
+.graph-evidence-drawer dt { color: #7b8b91; font-size: 9px; }
+.graph-evidence-drawer dd {
+  color: #9aa8ab;
+  font-size: 9.5px;
+  line-height: 1.4;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+.graph-evidence-drawer > footer { gap: 7px; margin-top: 15px; }
+.graph-evidence-drawer > footer button { height: 36px; font-size: 9px; }
+
+.graph-controlbar {
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.graph-controlbar::-webkit-scrollbar { display: none; }
+.graph-controlbar > * { flex: 0 0 auto; }
+.graph-controlbar .graph-status { margin-left: auto; }
+
+@media (max-width: 1120px) {
+  .graph-evidence-drawer { width: min(300px, 56%); }
+}
+
+@media (max-width: 820px) {
+  .graph-evidence-drawer { width: 270px; }
+}
+
+@media (max-width: 760px) {
+  body { overflow: auto; }
+  .studio-app { min-width: 0; }
+  .studio-workspace {
+    height: auto;
+    min-height: 0;
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(620px, calc(100vh - 118px)) 620px;
+  }
+  .left-panel { display: block; min-height: 620px; }
+  .graph-stage { min-height: 620px; }
+}
+
+@media (max-height: 620px) {
+  body { overflow-y: auto; }
+}
