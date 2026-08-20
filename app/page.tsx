@@ -1,6 +1,9 @@
 "use client";
 
 import {
+  type CSSProperties,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type PointerEvent as ReactPointerEvent,
   forwardRef,
   useCallback,
   useEffect,
@@ -87,6 +90,26 @@ type CanvasHandle = {
   fit: () => void;
   exportPng: () => void;
   exportSvg: () => void;
+};
+
+const SPLITTER_SIZE = 12;
+const DEFAULT_CHAT_RATIO = 0.4;
+
+const clampNumber = (value: number, minimum: number, maximum: number) =>
+  Math.min(maximum, Math.max(minimum, value));
+
+const getSplitBounds = (totalWidth: number) => {
+  const usable = Math.max(1, totalWidth - SPLITTER_SIZE);
+  let minChat = Math.min(300, Math.max(180, usable * 0.34));
+  let minVisual = Math.min(420, Math.max(220, usable * 0.42));
+
+  if (minChat + minVisual > usable) {
+    minChat = usable * 0.34;
+    minVisual = usable * 0.42;
+  }
+
+  const maxChat = Math.max(minChat, Math.min(usable * 0.62, usable - minVisual));
+  return { usable, minChat, maxChat };
 };
 
 const NODE_META: Record<NodeKind, { label: string; color: string; short: string }> = {
@@ -1053,9 +1076,31 @@ export default function Home() {
   const [importOpen, setImportOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [sourceExpanded, setSourceExpanded] = useState(false);
+  const [chatPaneRatio, setChatPaneRatio] = useState(DEFAULT_CHAT_RATIO);
+  const [workspaceWidth, setWorkspaceWidth] = useState(0);
+  const [splitterDragging, setSplitterDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const canvasRef = useRef<CanvasHandle>(null);
   const chatThreadRef = useRef<HTMLDivElement>(null);
+  const workspaceRef = useRef<HTMLElement>(null);
+  const splitterPointerRef = useRef<number | null>(null);
+  const pendingChatRatioRef = useRef(DEFAULT_CHAT_RATIO);
+  const splitterFrameRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    const workspace = workspaceRef.current;
+    if (!workspace) return;
+
+    const measure = () => setWorkspaceWidth(workspace.getBoundingClientRect().width);
+    const observer = new ResizeObserver(measure);
+    observer.observe(workspace);
+    measure();
+
+    return () => {
+      observer.disconnect();
+      if (splitterFrameRef.current !== null) cancelAnimationFrame(splitterFrameRef.current);
+    };
+  }, []);
 
   const nodeById = useMemo(() => new Map(nodes.map((node) => [node.id, node])), [nodes]);
 
@@ -1607,7 +1652,96 @@ export default function Home() {
     setNotice("RELATION " + selectedEdge.id + " VERIFIED · AUDIT TRAIL UPDATED");
   };
 
+  const queueChatPaneRatio = (nextRatio: number) => {
+    pendingChatRatioRef.current = nextRatio;
+    if (splitterFrameRef.current !== null) return;
+    splitterFrameRef.current = requestAnimationFrame(() => {
+      splitterFrameRef.current = null;
+      setChatPaneRatio(pendingChatRatioRef.current);
+    });
+  };
+
+  const flushChatPaneRatio = () => {
+    if (splitterFrameRef.current !== null) {
+      cancelAnimationFrame(splitterFrameRef.current);
+      splitterFrameRef.current = null;
+    }
+    setChatPaneRatio(pendingChatRatioRef.current);
+  };
+
+  const resizeChatPaneFromPointer = (clientX: number) => {
+    const workspace = workspaceRef.current;
+    if (!workspace) return;
+    const rect = workspace.getBoundingClientRect();
+    const bounds = getSplitBounds(rect.width);
+    const rawChatWidth = clientX - rect.left - SPLITTER_SIZE / 2;
+    const nextWidth = clampNumber(rawChatWidth, bounds.minChat, bounds.maxChat);
+    queueChatPaneRatio(nextWidth / bounds.usable);
+  };
+
+  const beginSplitterDrag = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+    event.preventDefault();
+    splitterPointerRef.current = event.pointerId;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setSplitterDragging(true);
+    resizeChatPaneFromPointer(event.clientX);
+  };
+
+  const moveSplitterDrag = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (splitterPointerRef.current !== event.pointerId) return;
+    resizeChatPaneFromPointer(event.clientX);
+  };
+
+  const finishSplitterDrag = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (splitterPointerRef.current !== null && splitterPointerRef.current !== event.pointerId) return;
+    splitterPointerRef.current = null;
+    flushChatPaneRatio();
+    setSplitterDragging(false);
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  };
+
+  const resetChatPane = () => {
+    pendingChatRatioRef.current = DEFAULT_CHAT_RATIO;
+    flushChatPaneRatio();
+  };
+
+  const handleSplitterKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    const width = workspaceRef.current?.getBoundingClientRect().width ?? workspaceWidth;
+    const bounds = getSplitBounds(width || 1000);
+    const currentWidth = clampNumber(chatPaneRatio * bounds.usable, bounds.minChat, bounds.maxChat);
+    const step = event.shiftKey ? 48 : 16;
+    let nextWidth: number;
+
+    if (event.key === "ArrowLeft") nextWidth = currentWidth - step;
+    else if (event.key === "ArrowRight") nextWidth = currentWidth + step;
+    else if (event.key === "Home") nextWidth = bounds.minChat;
+    else if (event.key === "End") nextWidth = bounds.maxChat;
+    else if (event.key === "Enter") {
+      resetChatPane();
+      event.preventDefault();
+      return;
+    } else return;
+
+    event.preventDefault();
+    const nextRatio = clampNumber(nextWidth, bounds.minChat, bounds.maxChat) / bounds.usable;
+    pendingChatRatioRef.current = nextRatio;
+    flushChatPaneRatio();
+  };
+
   const displayedSources = sourceExpanded ? DEMO_SOURCES : DEMO_SOURCES.slice(0, 4);
+  const splitBounds = getSplitBounds(workspaceWidth || 1000);
+  const resolvedChatWidth = workspaceWidth
+    ? clampNumber(chatPaneRatio * splitBounds.usable, splitBounds.minChat, splitBounds.maxChat)
+    : null;
+  const resolvedSplitPercent = Math.round(
+    ((resolvedChatWidth ?? splitBounds.usable * DEFAULT_CHAT_RATIO) / splitBounds.usable) * 100,
+  );
+  const workspaceStyle = resolvedChatWidth === null
+    ? undefined
+    : ({ "--chat-width": `${Math.round(resolvedChatWidth)}px` } as CSSProperties);
 
   return (
     <main className="studio-app">
@@ -1653,8 +1787,12 @@ export default function Home() {
         </div>
       </header>
 
-      <section className="studio-workspace">
-        <aside className="left-panel agent-panel">
+      <section
+        ref={workspaceRef}
+        className={cx("studio-workspace", splitterDragging && "is-resizing")}
+        style={workspaceStyle}
+      >
+        <aside id="chat-pane" className="left-panel agent-panel">
           <section className="agent-preview">
             <header>
               <div><span className="agent-orb">VA</span><span><strong>Visual Analyst</strong><small>DEMO AGENT · LOCAL ORCHESTRATION</small></span></div>
@@ -1821,7 +1959,28 @@ export default function Home() {
           </section>
         </aside>
 
-        <section className="graph-stage">
+        <div
+          className={cx("workspace-splitter", splitterDragging && "dragging")}
+          role="slider"
+          aria-label="Resize chat and visual panels"
+          aria-orientation="horizontal"
+          aria-controls="chat-pane visual-pane"
+          aria-valuemin={Math.round((splitBounds.minChat / splitBounds.usable) * 100)}
+          aria-valuemax={Math.round((splitBounds.maxChat / splitBounds.usable) * 100)}
+          aria-valuenow={resolvedSplitPercent}
+          aria-valuetext={`${resolvedSplitPercent}% chat width`}
+          tabIndex={0}
+          title="Drag to resize · Arrow keys adjust · Enter or double-click resets"
+          onPointerDown={beginSplitterDrag}
+          onPointerMove={moveSplitterDrag}
+          onPointerUp={finishSplitterDrag}
+          onPointerCancel={finishSplitterDrag}
+          onLostPointerCapture={finishSplitterDrag}
+          onDoubleClick={resetChatPane}
+          onKeyDown={handleSplitterKeyDown}
+        />
+
+        <section id="visual-pane" className="graph-stage">
           <div className="graph-controlbar">
             <div className="control-group view-switch" role="group" aria-label="View mode">
               <button type="button" className={cx(viewMode === "3d" && "active")} onClick={() => setViewMode("3d")}><span>◈</span> Analyze 3D</button>
