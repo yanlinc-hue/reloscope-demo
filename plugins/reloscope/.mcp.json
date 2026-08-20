@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "reloscope": {
+      "type": "http",
+      "url": "https://relation-star-map-819.yanlinc.chatgpt.site/mcp"
+    }
+  }
+}

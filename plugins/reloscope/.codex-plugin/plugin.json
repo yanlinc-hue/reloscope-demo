@@ -1,0 +1,38 @@
+{
+  "name": "reloscope",
+  "version": "0.1.0",
+  "description": "Explore complex relationship graphs and trace every claim back to evidence.",
+  "author": {
+    "name": "Reloscope",
+    "url": "https://github.com/yanlinc-hue"
+  },
+  "homepage": "https://relation-star-map-819.yanlinc.chatgpt.site/",
+  "repository": "https://github.com/yanlinc-hue/reloscope-demo",
+  "keywords": [
+    "knowledge-graph",
+    "relationship-intelligence",
+    "evidence",
+    "visualization"
+  ],
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "Reloscope",
+    "shortDescription": "Explore relationships. Verify the evidence.",
+    "longDescription": "Reloscope turns complex entity and relationship data into an interactive visual map. Search entities, expand neighborhoods, trace paths, and inspect the evidence behind each relationship without leaving the conversation.",
+    "developerName": "Reloscope",
+    "category": "Productivity",
+    "capabilities": [
+      "Interactive",
+      "Read"
+    ],
+    "websiteURL": "https://relation-star-map-819.yanlinc.chatgpt.site/",
+    "privacyPolicyURL": "https://relation-star-map-819.yanlinc.chatgpt.site/privacy",
+    "termsOfServiceURL": "https://relation-star-map-819.yanlinc.chatgpt.site/terms",
+    "defaultPrompt": [
+      "Map Jichuan Power's upstream relationships.",
+      "Trace the strongest path between two entities.",
+      "Explain the evidence behind this relationship."
+    ],
+    "brandColor": "#62E3D5"
+  }
+}

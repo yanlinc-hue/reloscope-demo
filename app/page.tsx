@@ -1049,7 +1049,7 @@ const RelationshipCanvas = forwardRef<CanvasHandle, CanvasProps>(function Relati
   );
 });
 
-export default function Home() {
+export function ReloscopeStudio({ visualOnly = false }: { visualOnly?: boolean } = {}) {
   const [nodes, setNodes] = useState<StudioNode[]>(() => applyLayout(DEMO_NODES.map((node) => ({ ...node })), DEMO_EDGES, "radial", "N01"));
   const [edges, setEdges] = useState<DemoEdge[]>(() => DEMO_EDGES.map((edge) => ({ ...edge })));
   const [scenes, setScenes] = useState<DemoScene[]>(() => DEMO_SCENES.map((scene) => ({ ...scene })));
@@ -1744,18 +1744,18 @@ export default function Home() {
     : ({ "--chat-width": `${Math.round(resolvedChatWidth)}px` } as CSSProperties);
 
   return (
-    <main className="studio-app">
+    <main className={cx("studio-app", visualOnly && "visual-only")}>
       <header className="studio-topbar">
         <div className="studio-brand">
           <span className="brand-symbol">VA</span>
-          <span className="brand-copy"><strong>RELOSCOPE</strong><small>CHAT × VISUAL INTELLIGENCE</small></span>
+          <span className="brand-copy"><strong>RELOSCOPE</strong><small>{visualOnly ? "VISUAL RELATIONSHIP INTELLIGENCE" : "CHAT × VISUAL INTELLIGENCE"}</small></span>
         </div>
         <div className="project-identity">
           <span className="project-dot" />
           <div><strong>Donglan New Energy Ecosystem Review</strong><small>PROJECT / DL-NE-2026-03 · AS OF 2026-03-31</small></div>
         </div>
         <nav className="studio-tabs" aria-label="Workspace navigation">
-          <button type="button" className="active">Agent Workspace</button>
+          <button type="button" className="active">{visualOnly ? "Visual Workspace" : "Agent Workspace"}</button>
           <button type="button" onClick={() => {
             setInspectorTab("evidence");
             if (!selectedEdgeId) setSelectedEdgeId(connectedEdges[0]?.id ?? null);
@@ -1772,7 +1772,7 @@ export default function Home() {
             <option>External Counsel</option>
             <option>Executive Viewer</option>
           </select>
-          <button type="button" className="quiet-action" onClick={() => submitAgentPrompt("Turn this analysis into investment committee scenes")}>Generate Scenes</button>
+          {!visualOnly && <button type="button" className="quiet-action" onClick={() => submitAgentPrompt("Turn this analysis into investment committee scenes")}>Generate Scenes</button>}
           <button type="button" className="quiet-action" onClick={shareScene}>Copy Scene Link</button>
           <div className="export-wrap">
             <button type="button" className="primary-action" onClick={() => setExportOpen((value) => !value)}>Export <span>⌄</span></button>
@@ -1789,10 +1789,10 @@ export default function Home() {
 
       <section
         ref={workspaceRef}
-        className={cx("studio-workspace", splitterDragging && "is-resizing")}
-        style={workspaceStyle}
+        className={cx("studio-workspace", visualOnly && "visual-workspace-only", splitterDragging && "is-resizing")}
+        style={visualOnly ? undefined : workspaceStyle}
       >
-        <aside id="chat-pane" className="left-panel agent-panel">
+        {!visualOnly && <aside id="chat-pane" className="left-panel agent-panel">
           <section className="agent-preview">
             <header>
               <div><span className="agent-orb">VA</span><span><strong>Visual Analyst</strong><small>DEMO AGENT · LOCAL ORCHESTRATION</small></span></div>
@@ -1957,9 +1957,9 @@ export default function Home() {
               })}
             </div>
           </section>
-        </aside>
+        </aside>}
 
-        <div
+        {!visualOnly && <div
           className={cx("workspace-splitter", splitterDragging && "dragging")}
           role="slider"
           aria-label="Resize chat and visual panels"
@@ -1978,7 +1978,7 @@ export default function Home() {
           onLostPointerCapture={finishSplitterDrag}
           onDoubleClick={resetChatPane}
           onKeyDown={handleSplitterKeyDown}
-        />
+        />}
 
         <section id="visual-pane" className="graph-stage">
           <div className="graph-controlbar">
@@ -2210,4 +2210,8 @@ export default function Home() {
       />
     </main>
   );
+}
+
+export default function Home() {
+  return <ReloscopeStudio />;
 }

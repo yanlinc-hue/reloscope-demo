@@ -13,18 +13,18 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Reloscope | Visual Relationship Intelligence",
-  description: "Ask the graph, verify the evidence, preview changes, and turn complex relationships into reusable analysis scenes.",
+  title: "Reloscope | Relationship Intelligence for ChatGPT",
+  description: "Explore complex relationship graphs in ChatGPT and trace every claim back to evidence.",
   openGraph: {
     title: "Reloscope",
-    description: "Ask the graph. Verify the evidence.",
+    description: "Explore relationships. Verify the evidence.",
     type: "website",
-    images: [{ url: "/og-reloscope.png", width: 1731, height: 909, alt: "Reloscope chat-driven visual intelligence workspace" }],
+    images: [{ url: "/og-reloscope.png", width: 1731, height: 909, alt: "Reloscope evidence-backed relationship graph" }],
   },
   twitter: {
     card: "summary_large_image",
     title: "Reloscope",
-    description: "Ask the graph. Verify the evidence.",
+    description: "Explore relationships. Verify the evidence.",
     images: ["/og-reloscope.png"],
   },
 };

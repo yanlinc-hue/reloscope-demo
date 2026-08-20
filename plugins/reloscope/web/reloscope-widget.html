@@ -1,0 +1,1674 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <title>Reloscope Relationship Canvas</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --ink: #e8f1f0;
+        --muted: #829396;
+        --faint: #506064;
+        --line: rgba(128, 163, 164, 0.2);
+        --line-strong: rgba(101, 226, 208, 0.36);
+        --panel: rgba(8, 16, 20, 0.94);
+        --panel-soft: rgba(14, 27, 31, 0.86);
+        --teal: #64e3d1;
+        --teal-soft: rgba(100, 227, 209, 0.12);
+        --blue: #76bce6;
+        --purple: #b19be9;
+        --amber: #efbd61;
+        --red: #e97b83;
+        font-family:
+          Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+          "Segoe UI", sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        width: 100%;
+        min-width: 0;
+        height: 100%;
+        margin: 0;
+        overflow: hidden;
+        background: #071015;
+        color: var(--ink);
+      }
+
+      button {
+        color: inherit;
+        font: inherit;
+      }
+
+      .app {
+        position: relative;
+        display: grid;
+        grid-template-rows: auto 1fr auto;
+        width: 100%;
+        height: clamp(520px, 72vh, 780px);
+        min-height: 520px;
+        overflow: hidden;
+        border: 1px solid rgba(119, 153, 155, 0.18);
+        border-radius: 18px;
+        background:
+          radial-gradient(circle at 20% 0%, rgba(32, 109, 106, 0.14), transparent 35%),
+          linear-gradient(150deg, #081117 0%, #060c11 64%, #091216 100%);
+        isolation: isolate;
+      }
+
+      .topbar {
+        z-index: 4;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        min-height: 62px;
+        padding: 10px 12px 10px 16px;
+        border-bottom: 1px solid var(--line);
+        background: rgba(7, 14, 18, 0.84);
+        backdrop-filter: blur(18px);
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 11px;
+        min-width: 0;
+      }
+
+      .brand-mark {
+        display: grid;
+        place-items: center;
+        width: 34px;
+        height: 34px;
+        flex: 0 0 34px;
+        border: 1px solid rgba(100, 227, 209, 0.7);
+        background: rgba(100, 227, 209, 0.06);
+        color: var(--teal);
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: -0.08em;
+      }
+
+      .brand-copy {
+        min-width: 0;
+      }
+
+      .brand-name {
+        overflow: hidden;
+        font-size: 14px;
+        font-weight: 750;
+        letter-spacing: 0.18em;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .brand-subtitle {
+        margin-top: 3px;
+        color: var(--muted);
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 9px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+
+      .status {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        margin-left: 5px;
+        color: #95a6a8;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 10px;
+        letter-spacing: 0.05em;
+        white-space: nowrap;
+      }
+
+      .status-dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--teal);
+        box-shadow: 0 0 12px rgba(100, 227, 209, 0.8);
+      }
+
+      .toolbar {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        margin-left: auto;
+      }
+
+      .control,
+      .segmented button,
+      .drawer-action {
+        min-height: 34px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: rgba(10, 20, 24, 0.84);
+        color: #a5b4b5;
+        cursor: pointer;
+        transition:
+          border-color 140ms ease,
+          background 140ms ease,
+          color 140ms ease,
+          transform 140ms ease;
+      }
+
+      .control {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 7px;
+        padding: 0 11px;
+        font-size: 11px;
+      }
+
+      .control:hover,
+      .segmented button:hover,
+      .drawer-action:hover {
+        border-color: var(--line-strong);
+        background: var(--teal-soft);
+        color: var(--ink);
+      }
+
+      .control:active,
+      .segmented button:active,
+      .drawer-action:active {
+        transform: translateY(1px);
+      }
+
+      .control:focus-visible,
+      .segmented button:focus-visible,
+      .drawer-action:focus-visible,
+      .drawer-close:focus-visible,
+      canvas:focus-visible {
+        outline: 2px solid rgba(100, 227, 209, 0.82);
+        outline-offset: 2px;
+      }
+
+      .control .icon {
+        color: var(--teal);
+        font-size: 13px;
+      }
+
+      .segmented {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        padding: 3px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: rgba(3, 10, 13, 0.7);
+      }
+
+      .segmented button {
+        min-width: 44px;
+        min-height: 28px;
+        padding: 0 9px;
+        border-color: transparent;
+        background: transparent;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 10px;
+        letter-spacing: 0.08em;
+      }
+
+      .segmented button[aria-pressed="true"] {
+        border-color: rgba(100, 227, 209, 0.38);
+        background: rgba(100, 227, 209, 0.12);
+        color: var(--teal);
+      }
+
+      .stage {
+        position: relative;
+        min-width: 0;
+        min-height: 0;
+        overflow: hidden;
+      }
+
+      .canvas-wrap {
+        position: absolute;
+        inset: 0;
+      }
+
+      canvas {
+        display: block;
+        width: 100%;
+        height: 100%;
+        touch-action: none;
+        cursor: grab;
+      }
+
+      canvas.is-dragging {
+        cursor: grabbing;
+      }
+
+      .mode-label {
+        position: absolute;
+        top: 15px;
+        left: 16px;
+        z-index: 2;
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        pointer-events: none;
+        color: #809194;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 10px;
+        letter-spacing: 0.09em;
+        text-transform: uppercase;
+      }
+
+      .mode-label::before {
+        width: 17px;
+        height: 1px;
+        background: var(--teal);
+        box-shadow: 0 0 8px rgba(100, 227, 209, 0.55);
+        content: "";
+      }
+
+      .hint {
+        position: absolute;
+        right: 16px;
+        bottom: 14px;
+        z-index: 2;
+        max-width: calc(100% - 32px);
+        padding: 7px 9px;
+        border: 1px solid rgba(119, 153, 155, 0.14);
+        border-radius: 7px;
+        background: rgba(5, 12, 15, 0.72);
+        color: #647579;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 9px;
+        letter-spacing: 0.035em;
+        pointer-events: none;
+      }
+
+      .empty-state {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        z-index: 1;
+        width: min(340px, calc(100% - 48px));
+        padding: 22px;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: rgba(9, 18, 22, 0.9);
+        text-align: center;
+        transform: translate(-50%, -50%);
+      }
+
+      .empty-state[hidden] {
+        display: none;
+      }
+
+      .empty-state strong {
+        display: block;
+        margin-bottom: 7px;
+        font-size: 14px;
+      }
+
+      .empty-state span {
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.55;
+      }
+
+      .drawer {
+        position: absolute;
+        z-index: 7;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        display: flex;
+        flex-direction: column;
+        width: min(355px, calc(100% - 28px));
+        border-left: 1px solid rgba(100, 227, 209, 0.25);
+        background: var(--panel);
+        box-shadow: -24px 0 54px rgba(0, 0, 0, 0.32);
+        transform: translateX(103%);
+        transition: transform 190ms cubic-bezier(0.2, 0.8, 0.2, 1);
+        backdrop-filter: blur(20px);
+      }
+
+      .drawer.open {
+        transform: translateX(0);
+      }
+
+      .drawer-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        min-height: 56px;
+        padding: 10px 14px 10px 18px;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .drawer-kicker {
+        color: var(--teal);
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 10px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+
+      .drawer-close {
+        display: grid;
+        place-items: center;
+        width: 32px;
+        height: 32px;
+        border: 0;
+        border-radius: 8px;
+        background: transparent;
+        color: var(--muted);
+        cursor: pointer;
+      }
+
+      .drawer-close:hover {
+        background: rgba(255, 255, 255, 0.05);
+        color: var(--ink);
+      }
+
+      .drawer-body {
+        min-height: 0;
+        flex: 1;
+        overflow: auto;
+        padding: 18px;
+      }
+
+      .entity-type,
+      .relation-type {
+        margin-bottom: 9px;
+        color: var(--muted);
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 10px;
+        letter-spacing: 0.09em;
+        text-transform: uppercase;
+      }
+
+      .drawer-title {
+        margin: 0;
+        font-size: 19px;
+        font-weight: 650;
+        line-height: 1.3;
+      }
+
+      .drawer-id {
+        margin-top: 8px;
+        color: #65777a;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 10px;
+      }
+
+      .relation-route {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+        align-items: center;
+        gap: 8px;
+        margin-top: 16px;
+        padding: 12px;
+        border: 1px solid var(--line);
+        border-radius: 9px;
+        background: rgba(255, 255, 255, 0.018);
+        color: #c4d0cf;
+        font-size: 11px;
+      }
+
+      .route-node {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .route-arrow {
+        color: var(--teal);
+      }
+
+      .metrics {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        margin-top: 14px;
+      }
+
+      .metric {
+        padding: 10px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.018);
+      }
+
+      .metric-label {
+        color: var(--muted);
+        font-size: 9px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .metric-value {
+        margin-top: 6px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 13px;
+      }
+
+      .verified {
+        color: var(--teal);
+      }
+
+      .unverified {
+        color: var(--amber);
+      }
+
+      .disputed {
+        color: var(--red);
+      }
+
+      .section-title {
+        margin: 21px 0 9px;
+        color: #93a4a6;
+        font-size: 10px;
+        font-weight: 600;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+      }
+
+      .description {
+        margin: 13px 0 0;
+        color: #a8b6b7;
+        font-size: 12px;
+        line-height: 1.65;
+      }
+
+      .evidence-list {
+        display: grid;
+        gap: 8px;
+      }
+
+      .evidence-card {
+        padding: 12px;
+        border: 1px solid var(--line);
+        border-radius: 9px;
+        background: rgba(14, 27, 31, 0.64);
+      }
+
+      .evidence-card-head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 10px;
+      }
+
+      .evidence-card strong {
+        font-size: 11px;
+        font-weight: 620;
+        line-height: 1.4;
+      }
+
+      .evidence-tag {
+        flex: 0 0 auto;
+        color: var(--teal);
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 8px;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+      }
+
+      .evidence-card p {
+        margin: 8px 0 0;
+        color: #87989a;
+        font-size: 10px;
+        line-height: 1.55;
+      }
+
+      .evidence-meta {
+        margin-top: 8px;
+        color: #596a6d;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 8px;
+      }
+
+      .no-evidence {
+        padding: 13px;
+        border: 1px dashed rgba(239, 189, 97, 0.3);
+        border-radius: 8px;
+        color: #a89570;
+        font-size: 11px;
+        line-height: 1.5;
+      }
+
+      .drawer-actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        padding: 12px 14px 14px;
+        border-top: 1px solid var(--line);
+        background: rgba(6, 13, 16, 0.88);
+      }
+
+      .drawer-action {
+        padding: 0 11px;
+        font-size: 11px;
+      }
+
+      .drawer-action.primary {
+        border-color: rgba(100, 227, 209, 0.5);
+        background: rgba(100, 227, 209, 0.12);
+        color: var(--teal);
+      }
+
+      .footer {
+        z-index: 4;
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        min-height: 38px;
+        padding: 7px 14px;
+        border-top: 1px solid var(--line);
+        background: rgba(7, 14, 18, 0.9);
+        color: #617275;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 9px;
+        letter-spacing: 0.04em;
+      }
+
+      .legend {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        min-width: 0;
+      }
+
+      .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        white-space: nowrap;
+      }
+
+      .legend-dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+      }
+
+      .footer-counts {
+        margin-left: auto;
+        white-space: nowrap;
+      }
+
+      .toast {
+        position: absolute;
+        z-index: 12;
+        left: 50%;
+        bottom: 54px;
+        max-width: calc(100% - 32px);
+        padding: 9px 12px;
+        border: 1px solid var(--line-strong);
+        border-radius: 8px;
+        background: rgba(10, 23, 26, 0.96);
+        color: #bfd0cf;
+        font-size: 11px;
+        opacity: 0;
+        pointer-events: none;
+        transform: translate(-50%, 8px);
+        transition: 160ms ease;
+      }
+
+      .toast.show {
+        opacity: 1;
+        transform: translate(-50%, 0);
+      }
+
+      @media (max-width: 680px) {
+        .app {
+          height: max(540px, 78vh);
+          border-radius: 14px;
+        }
+
+        .topbar {
+          gap: 8px;
+          padding-left: 12px;
+        }
+
+        .brand-subtitle,
+        .status,
+        .control .label,
+        .hint,
+        .legend-item:nth-child(n + 4) {
+          display: none;
+        }
+
+        .control {
+          width: 34px;
+          padding: 0;
+        }
+
+        .segmented button {
+          min-width: 38px;
+          padding: 0 6px;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+          scroll-behavior: auto !important;
+          transition-duration: 0.01ms !important;
+          animation-duration: 0.01ms !important;
+          animation-iteration-count: 1 !important;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="app" aria-label="Reloscope relationship intelligence canvas">
+      <header class="topbar">
+        <div class="brand">
+          <div class="brand-mark" aria-hidden="true">R°</div>
+          <div class="brand-copy">
+            <div class="brand-name">RELOSCOPE</div>
+            <div class="brand-subtitle">Relationship intelligence</div>
+          </div>
+        </div>
+        <div class="status" id="status">
+          <span class="status-dot" aria-hidden="true"></span>
+          <span id="statusText">DEMO GRAPH</span>
+        </div>
+        <div class="toolbar" aria-label="Canvas controls">
+          <div class="segmented" aria-label="Visual mode">
+            <button id="mode2d" type="button" aria-pressed="false">2D</button>
+            <button id="mode3d" type="button" aria-pressed="true">3D</button>
+          </div>
+          <button class="control" id="resetButton" type="button" title="Reset view">
+            <span class="icon" aria-hidden="true">↺</span><span class="label">Reset</span>
+          </button>
+          <button class="control" id="fullscreenButton" type="button" title="Open fullscreen">
+            <span class="icon" aria-hidden="true">⛶</span><span class="label">Full screen</span>
+          </button>
+        </div>
+      </header>
+
+      <section class="stage" id="stage">
+        <div class="canvas-wrap" id="canvasWrap">
+          <canvas
+            id="graphCanvas"
+            tabindex="0"
+            role="application"
+            aria-label="Interactive relationship graph. Drag nodes, drag the background to pan, and scroll to zoom."
+          ></canvas>
+        </div>
+        <div class="mode-label"><span id="modeLabel">Perspective network</span></div>
+        <div class="hint">Drag nodes · Pan background · Scroll to zoom · Select a relation for evidence</div>
+        <div class="empty-state" id="emptyState" hidden>
+          <strong>No relationships to display</strong>
+          <span>Ask ChatGPT to search for an entity or render a relationship graph.</span>
+        </div>
+
+        <aside class="drawer" id="drawer" aria-label="Selection and evidence" aria-hidden="true">
+          <div class="drawer-head">
+            <div class="drawer-kicker" id="drawerKicker">Selection</div>
+            <button class="drawer-close" id="drawerClose" type="button" aria-label="Close details">×</button>
+          </div>
+          <div class="drawer-body" id="drawerBody"></div>
+          <div class="drawer-actions">
+            <button class="drawer-action primary" id="explainButton" type="button">Explain</button>
+            <button class="drawer-action" id="expandButton" type="button">Expand 2 hops</button>
+          </div>
+        </aside>
+      </section>
+
+      <footer class="footer">
+        <div class="legend" aria-label="Entity type legend">
+          <span class="legend-item"><span class="legend-dot" style="background:#64e3d1"></span>Company</span>
+          <span class="legend-item"><span class="legend-dot" style="background:#76bce6"></span>Project</span>
+          <span class="legend-item"><span class="legend-dot" style="background:#b19be9"></span>Fund</span>
+          <span class="legend-item"><span class="legend-dot" style="background:#efbd61"></span>Agency</span>
+        </div>
+        <div class="footer-counts" id="footerCounts">0 entities · 0 relations</div>
+      </footer>
+      <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    </main>
+
+    <script>
+      (() => {
+        "use strict";
+
+        const fallback = {
+          summary: "Synthetic relationship graph for standalone preview.",
+          graph: {
+            mode: "replace",
+            nodes: [
+              { id: "E01", label: "Jichuan Power", kind: "company", subtitle: "Energy systems", verification: "verified", riskScore: 0.44 },
+              { id: "E02", label: "Lanxin Intelligent Controls", kind: "company", subtitle: "BMS controllers", verification: "verified", riskScore: 0.82 },
+              { id: "E03", label: "Donglan Storage Project", kind: "project", subtitle: "Grid-scale storage", verification: "verified", riskScore: 0.57 },
+              { id: "E04", label: "Horizon Industrial Fund", kind: "fund", subtitle: "Strategic capital", verification: "verified", riskScore: 0.35 },
+              { id: "E05", label: "East Grid Research", kind: "technology", subtitle: "Power systems R&D", verification: "verified", riskScore: 0.2 },
+              { id: "E06", label: "Maya Chen", kind: "person", subtitle: "Controlling shareholder", verification: "unverified", riskScore: 0.68 },
+              { id: "E07", label: "Portside Systems", kind: "company", subtitle: "Component supplier", verification: "verified", riskScore: 0.61 },
+              { id: "E08", label: "Regional Energy Bureau", kind: "agency", subtitle: "Public-sector program", verification: "verified", riskScore: 0.12 },
+              { id: "E09", label: "Northshore Battery Lab", kind: "technology", subtitle: "Cell chemistry", verification: "unverified", riskScore: 0.49 }
+            ],
+            edges: [
+              { id: "R01", sourceId: "E02", targetId: "E01", kind: "supplies", label: "supplies controllers", directed: true, confidence: 0.94, verification: "verified", evidenceIds: ["EV01", "EV02"] },
+              { id: "R02", sourceId: "E04", targetId: "E01", kind: "invests_in", label: "strategic investment", directed: true, confidence: 0.89, verification: "verified", evidenceIds: ["EV03"] },
+              { id: "R03", sourceId: "E01", targetId: "E03", kind: "develops", label: "develops", directed: true, confidence: 0.96, verification: "verified", evidenceIds: ["EV04"] },
+              { id: "R04", sourceId: "E04", targetId: "E03", kind: "funds", label: "project financing", directed: true, confidence: 0.86, verification: "verified", evidenceIds: ["EV05"] },
+              { id: "R05", sourceId: "E05", targetId: "E01", kind: "partners_with", label: "R&D partnership", directed: false, confidence: 0.78, verification: "verified", evidenceIds: ["EV06"] },
+              { id: "R06", sourceId: "E06", targetId: "E02", kind: "controls", label: "controls", directed: true, confidence: 0.63, verification: "unverified", evidenceIds: [] },
+              { id: "R07", sourceId: "E07", targetId: "E02", kind: "supplies", label: "supplies components", directed: true, confidence: 0.83, verification: "verified", evidenceIds: ["EV07"] },
+              { id: "R08", sourceId: "E08", targetId: "E03", kind: "funds", label: "grant support", directed: true, confidence: 0.92, verification: "verified", evidenceIds: ["EV08"] },
+              { id: "R09", sourceId: "E09", targetId: "E05", kind: "partners_with", label: "joint validation", directed: false, confidence: 0.58, verification: "unverified", evidenceIds: ["EV09"] }
+            ],
+            evidence: [
+              { id: "EV01", title: "2025 supplier disclosure", excerpt: "Lanxin is listed as the primary controller supplier for Jichuan's current platform.", publishedAt: "2026-02-18", stance: "supports", reliability: 0.92 },
+              { id: "EV02", title: "Procurement award notice", excerpt: "The award covers controller units and three years of maintenance support.", publishedAt: "2026-01-09", stance: "supports", reliability: 0.88 },
+              { id: "EV03", title: "Fund portfolio update", excerpt: "Horizon reports a strategic minority position in Jichuan Power.", publishedAt: "2025-12-21", stance: "supports", reliability: 0.86 },
+              { id: "EV04", title: "Project filing DL-NE-2026-03", excerpt: "Jichuan Power is named lead developer of the Donglan storage project.", publishedAt: "2026-03-11", stance: "supports", reliability: 0.95 },
+              { id: "EV05", title: "Financing term sheet summary", excerpt: "Horizon Industrial Fund participates in the project's first financing tranche.", publishedAt: "2026-03-16", stance: "supports", reliability: 0.83 },
+              { id: "EV06", title: "Joint research announcement", excerpt: "The parties established a shared grid-control validation program.", publishedAt: "2025-11-02", stance: "supports", reliability: 0.8 },
+              { id: "EV07", title: "Tier-two supplier register", excerpt: "Portside Systems supplies sensor assemblies used in Lanxin controller units.", publishedAt: "2026-02-03", stance: "supports", reliability: 0.79 },
+              { id: "EV08", title: "Regional demonstration grant", excerpt: "The Donglan project received support under the regional storage program.", publishedAt: "2026-01-26", stance: "supports", reliability: 0.9 },
+              { id: "EV09", title: "Laboratory newsletter", excerpt: "A pilot validation effort is described, but no signed agreement is attached.", publishedAt: "2025-10-14", stance: "supports", reliability: 0.48 }
+            ]
+          }
+        };
+
+        const colors = {
+          company: "#64e3d1",
+          project: "#76bce6",
+          fund: "#b19be9",
+          agency: "#efbd61",
+          technology: "#8ed7bd",
+          person: "#e58cba",
+          location: "#94a8ce",
+          document: "#aeb8b9",
+          other: "#90a0a2"
+        };
+
+        const app = document.querySelector(".app");
+        const canvas = document.getElementById("graphCanvas");
+        const wrap = document.getElementById("canvasWrap");
+        const ctx = canvas.getContext("2d", { alpha: true });
+        const emptyState = document.getElementById("emptyState");
+        const drawer = document.getElementById("drawer");
+        const drawerBody = document.getElementById("drawerBody");
+        const drawerKicker = document.getElementById("drawerKicker");
+        const drawerClose = document.getElementById("drawerClose");
+        const explainButton = document.getElementById("explainButton");
+        const expandButton = document.getElementById("expandButton");
+        const mode2d = document.getElementById("mode2d");
+        const mode3d = document.getElementById("mode3d");
+        const modeLabel = document.getElementById("modeLabel");
+        const resetButton = document.getElementById("resetButton");
+        const fullscreenButton = document.getElementById("fullscreenButton");
+        const footerCounts = document.getElementById("footerCounts");
+        const statusText = document.getElementById("statusText");
+        const toast = document.getElementById("toast");
+
+        let width = 1;
+        let height = 1;
+        let dpr = 1;
+        let nodes = [];
+        let edges = [];
+        let evidence = [];
+        let nodeById = new Map();
+        let evidenceById = new Map();
+        let screenNodes = [];
+        let screenEdges = [];
+        let selected = null;
+        let drawerOpen = false;
+        let viewMode = "3d";
+        let camera = { panX: 0, panY: 0, zoom: 1 };
+        let interaction = null;
+        let physicsAlpha = 1;
+        let lastFrame = performance.now();
+        let rotation = -0.2;
+        let bridgeReady = false;
+        let bridgeInitPromise = Promise.resolve(false);
+        let rpcId = 1;
+        let toastTimer = null;
+        const pending = new Map();
+
+        function value(source, ...keys) {
+          for (const key of keys) {
+            if (source && source[key] !== undefined && source[key] !== null) return source[key];
+          }
+          return undefined;
+        }
+
+        function normalizeNode(raw, index, old) {
+          const id = String(value(raw, "id", "entityId", "entity_id") ?? `node-${index + 1}`);
+          const seed = hash(id);
+          const angle = ((index / Math.max(1, nodes.length || 9)) * Math.PI * 2) + ((seed % 17) / 30);
+          const radius = 95 + (index % 4) * 38;
+          return {
+            id,
+            label: String(value(raw, "label", "name", "title") ?? id),
+            kind: String(value(raw, "kind", "type", "entityType", "entity_type") ?? "other").toLowerCase(),
+            subtitle: String(value(raw, "subtitle", "description", "summary") ?? ""),
+            verification: String(value(raw, "verification", "verificationStatus", "verification_status", "status") ?? "unverified").toLowerCase(),
+            riskScore: number(value(raw, "riskScore", "risk_score", "risk"), null),
+            attributes: Array.isArray(raw?.attributes) ? raw.attributes : [],
+            x: old?.x ?? number(raw?.x ?? raw?.position?.x, Math.cos(angle) * radius),
+            y: old?.y ?? number(raw?.y ?? raw?.position?.y, Math.sin(angle) * radius),
+            z: old?.z ?? number(raw?.z ?? raw?.position?.z, ((seed % 201) - 100) * 0.85),
+            vx: old?.vx ?? 0,
+            vy: old?.vy ?? 0,
+            fixed: old?.fixed ?? false,
+            degree: 0
+          };
+        }
+
+        function normalizeEdge(raw, index) {
+          return {
+            id: String(value(raw, "id", "relationId", "relation_id") ?? `edge-${index + 1}`),
+            sourceId: String(value(raw, "sourceId", "source_id", "source") ?? ""),
+            targetId: String(value(raw, "targetId", "target_id", "target") ?? ""),
+            kind: String(value(raw, "kind", "type", "relationType", "relation_type") ?? "related_to").toLowerCase(),
+            label: String(value(raw, "label", "name", "kind", "type") ?? "related to").replaceAll("_", " "),
+            directed: value(raw, "directed") !== false,
+            confidence: clamp(number(value(raw, "confidence", "score"), 0.5), 0, 1),
+            verification: String(value(raw, "verification", "verificationStatus", "verification_status", "status") ?? "unverified").toLowerCase(),
+            evidenceIds: (value(raw, "evidenceIds", "evidence_ids") ?? []).map(String)
+          };
+        }
+
+        function normalizeEvidence(raw, index) {
+          return {
+            id: String(value(raw, "id", "evidenceId", "evidence_id") ?? `evidence-${index + 1}`),
+            title: String(value(raw, "title", "sourceTitle", "source_title") ?? "Source record"),
+            excerpt: String(value(raw, "excerpt", "snippet", "summary") ?? ""),
+            publishedAt: String(value(raw, "publishedAt", "published_at", "date") ?? ""),
+            status: String(value(raw, "status", "verification", "verificationStatus", "verification_status") ?? "review").toLowerCase(),
+            confidence: clamp(number(value(raw, "confidence", "reliability"), 0.5), 0, 1),
+            sourceUrl: String(value(raw, "sourceUrl", "source_url", "url") ?? "")
+          };
+        }
+
+        function number(input, fallback) {
+          const parsed = Number(input);
+          return Number.isFinite(parsed) ? parsed : fallback;
+        }
+
+        function clamp(input, min, max) {
+          return Math.min(max, Math.max(min, input));
+        }
+
+        function hash(text) {
+          let out = 2166136261;
+          for (let i = 0; i < text.length; i += 1) {
+            out ^= text.charCodeAt(i);
+            out = Math.imul(out, 16777619);
+          }
+          return out >>> 0;
+        }
+
+        function applyStructuredContent(content, source = "tool") {
+          const graph = content?.graph;
+          if (!graph || !Array.isArray(graph.nodes) || !Array.isArray(graph.edges)) return false;
+
+          const oldNodes = new Map(nodes.map((node) => [node.id, node]));
+          const incomingNodes = graph.nodes.map((item, index) => normalizeNode(item, index, oldNodes.get(String(value(item, "id", "entityId", "entity_id")))));
+          const incomingEdges = graph.edges.map(normalizeEdge).filter((edge) => edge.sourceId && edge.targetId);
+          const mode = String(content.mode ?? graph.mode ?? "replace").toLowerCase();
+
+          if (mode === "merge" && nodes.length) {
+            const mergedNodes = new Map(nodes.map((node) => [node.id, node]));
+            incomingNodes.forEach((node) => mergedNodes.set(node.id, node));
+            nodes = [...mergedNodes.values()];
+            const mergedEdges = new Map(edges.map((edge) => [edge.id, edge]));
+            incomingEdges.forEach((edge) => mergedEdges.set(edge.id, edge));
+            edges = [...mergedEdges.values()];
+          } else {
+            nodes = incomingNodes;
+            edges = incomingEdges;
+          }
+
+          nodeById = new Map(nodes.map((node) => [node.id, node]));
+          edges = edges.filter((edge) => nodeById.has(edge.sourceId) && nodeById.has(edge.targetId));
+          nodes.forEach((node) => { node.degree = 0; });
+          edges.forEach((edge) => {
+            nodeById.get(edge.sourceId).degree += 1;
+            nodeById.get(edge.targetId).degree += 1;
+          });
+
+          const rawEvidence = [
+            ...(Array.isArray(graph.evidence) ? graph.evidence : []),
+            ...(Array.isArray(content.evidence) ? content.evidence : [])
+          ];
+          evidence = [...new Map(rawEvidence.map((item, index) => {
+            const normalized = normalizeEvidence(item, index);
+            return [normalized.id, normalized];
+          })).values()];
+          evidenceById = new Map(evidence.map((item) => [item.id, item]));
+
+          if (selected && !getSelectedObject()) clearSelection(false);
+          physicsAlpha = 1;
+          emptyState.hidden = nodes.length > 0;
+          footerCounts.textContent = `${nodes.length} ${nodes.length === 1 ? "entity" : "entities"} · ${edges.length} ${edges.length === 1 ? "relation" : "relations"}`;
+          statusText.textContent = source === "tool" ? "LIVE TOOL RESULT" : "DEMO GRAPH";
+
+          const requestedSelection = content.selection ?? graph.selection;
+          const requestedRelationId = requestedSelection?.relationIds?.find((id) => edges.some((edge) => edge.id === String(id)));
+          const requestedEntityId = requestedSelection?.entityIds?.find((id) => nodeById.has(String(id)));
+          if (requestedRelationId) select("edge", String(requestedRelationId), false, true);
+          else if (requestedEntityId) select("node", String(requestedEntityId), false, true);
+          return true;
+        }
+
+        function resize() {
+          const rect = wrap.getBoundingClientRect();
+          width = Math.max(1, rect.width);
+          height = Math.max(1, rect.height);
+          dpr = Math.min(window.devicePixelRatio || 1, 2);
+          canvas.width = Math.round(width * dpr);
+          canvas.height = Math.round(height * dpr);
+          ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        }
+
+        function simulate() {
+          if (physicsAlpha < 0.003 || interaction?.type === "node") return;
+          const alpha = physicsAlpha;
+          for (let i = 0; i < nodes.length; i += 1) {
+            const a = nodes[i];
+            for (let j = i + 1; j < nodes.length; j += 1) {
+              const b = nodes[j];
+              let dx = b.x - a.x;
+              let dy = b.y - a.y;
+              const distanceSq = Math.max(90, dx * dx + dy * dy);
+              const distance = Math.sqrt(distanceSq);
+              const force = (1850 * alpha) / distanceSq;
+              dx /= distance;
+              dy /= distance;
+              if (!a.fixed) { a.vx -= dx * force; a.vy -= dy * force; }
+              if (!b.fixed) { b.vx += dx * force; b.vy += dy * force; }
+            }
+          }
+          edges.forEach((edge) => {
+            const a = nodeById.get(edge.sourceId);
+            const b = nodeById.get(edge.targetId);
+            if (!a || !b) return;
+            const dx = b.x - a.x;
+            const dy = b.y - a.y;
+            const distance = Math.max(1, Math.hypot(dx, dy));
+            const desired = 104 + Math.min(34, (a.degree + b.degree) * 3);
+            const force = (distance - desired) * 0.006 * alpha;
+            if (!a.fixed) { a.vx += (dx / distance) * force; a.vy += (dy / distance) * force; }
+            if (!b.fixed) { b.vx -= (dx / distance) * force; b.vy -= (dy / distance) * force; }
+          });
+          nodes.forEach((node) => {
+            if (node.fixed) return;
+            node.vx += -node.x * 0.0007 * alpha;
+            node.vy += -node.y * 0.0007 * alpha;
+            node.vx *= 0.88;
+            node.vy *= 0.88;
+            node.x += node.vx;
+            node.y += node.vy;
+          });
+          physicsAlpha *= 0.985;
+        }
+
+        function project(node) {
+          if (viewMode === "2d") {
+            return {
+              x: width / 2 + camera.panX + node.x * camera.zoom,
+              y: height / 2 + camera.panY + node.y * camera.zoom,
+              depth: 0,
+              perspective: 1
+            };
+          }
+          const cos = Math.cos(rotation);
+          const sin = Math.sin(rotation);
+          const rx = node.x * cos + node.z * sin;
+          const rz = -node.x * sin + node.z * cos;
+          const perspective = clamp(520 / (520 + rz), 0.72, 1.38);
+          return {
+            x: width / 2 + camera.panX + rx * camera.zoom * perspective,
+            y: height / 2 + camera.panY + node.y * camera.zoom * perspective,
+            depth: rz,
+            perspective
+          };
+        }
+
+        function draw(time) {
+          const delta = Math.min(40, time - lastFrame);
+          lastFrame = time;
+          if (viewMode === "3d" && !interaction && !matchMedia("(prefers-reduced-motion: reduce)").matches) rotation += delta * 0.000025;
+          simulate();
+          ctx.clearRect(0, 0, width, height);
+          drawGrid();
+
+          screenNodes = nodes.map((node) => ({ node, ...project(node) }));
+          const screenNodeById = new Map(screenNodes.map((item) => [item.node.id, item]));
+          screenEdges = edges.map((edge) => ({ edge, source: screenNodeById.get(edge.sourceId), target: screenNodeById.get(edge.targetId) })).filter((item) => item.source && item.target);
+          screenEdges.sort((a, b) => ((a.source.depth + a.target.depth) / 2) - ((b.source.depth + b.target.depth) / 2));
+          screenNodes.sort((a, b) => a.depth - b.depth);
+
+          screenEdges.forEach(drawEdge);
+          screenNodes.forEach(drawNode);
+          requestAnimationFrame(draw);
+        }
+
+        function drawGrid() {
+          ctx.save();
+          const spacing = 42 * clamp(camera.zoom, 0.62, 1.4);
+          const ox = ((width / 2 + camera.panX) % spacing + spacing) % spacing;
+          const oy = ((height / 2 + camera.panY) % spacing + spacing) % spacing;
+          ctx.fillStyle = "rgba(126, 169, 171, 0.085)";
+          for (let x = ox; x < width; x += spacing) {
+            for (let y = oy; y < height; y += spacing) {
+              ctx.fillRect(Math.round(x), Math.round(y), 1, 1);
+            }
+          }
+          if (viewMode === "3d") {
+            const gradient = ctx.createRadialGradient(width * 0.54, height * 0.48, 0, width * 0.54, height * 0.48, Math.max(width, height) * 0.6);
+            gradient.addColorStop(0, "rgba(40, 150, 143, 0.045)");
+            gradient.addColorStop(1, "rgba(5, 12, 16, 0)");
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, width, height);
+          }
+          ctx.restore();
+        }
+
+        function drawEdge(item) {
+          const { edge, source, target } = item;
+          const isSelected = selected?.type === "edge" && selected.id === edge.id;
+          const isRelated = selected?.type === "node" && (edge.sourceId === selected.id || edge.targetId === selected.id);
+          const depthFade = viewMode === "3d" ? clamp(1.08 - ((source.depth + target.depth) / 2 + 100) / 450, 0.28, 0.92) : 0.7;
+          const color = edge.verification === "verified" ? "100, 227, 209" : edge.verification === "disputed" ? "233, 123, 131" : "239, 189, 97";
+          ctx.save();
+          ctx.beginPath();
+          ctx.moveTo(source.x, source.y);
+          ctx.lineTo(target.x, target.y);
+          ctx.lineWidth = isSelected ? 2.2 : isRelated ? 1.45 : 0.8;
+          ctx.strokeStyle = `rgba(${color}, ${isSelected ? 0.95 : isRelated ? 0.62 : depthFade * 0.42})`;
+          if (edge.verification !== "verified") ctx.setLineDash([4, 5]);
+          ctx.stroke();
+          ctx.setLineDash([]);
+
+          if (edge.directed) drawArrow(source, target, color, isSelected ? 0.95 : 0.54);
+          if (isSelected) {
+            const mx = (source.x + target.x) / 2;
+            const my = (source.y + target.y) / 2;
+            drawLabel(edge.label, mx, my - 9, "rgba(9, 18, 22, 0.95)", "#aeece3", 10);
+          }
+          ctx.restore();
+        }
+
+        function drawArrow(source, target, color, opacity) {
+          const angle = Math.atan2(target.y - source.y, target.x - source.x);
+          const radius = 12 * target.perspective + 6;
+          const x = target.x - Math.cos(angle) * radius;
+          const y = target.y - Math.sin(angle) * radius;
+          ctx.beginPath();
+          ctx.moveTo(x, y);
+          ctx.lineTo(x - Math.cos(angle - 0.48) * 7, y - Math.sin(angle - 0.48) * 7);
+          ctx.lineTo(x - Math.cos(angle + 0.48) * 7, y - Math.sin(angle + 0.48) * 7);
+          ctx.closePath();
+          ctx.fillStyle = `rgba(${color}, ${opacity})`;
+          ctx.fill();
+        }
+
+        function drawNode(item) {
+          const { node, x, y, perspective, depth } = item;
+          const isSelected = selected?.type === "node" && selected.id === node.id;
+          const baseRadius = 7.5 + Math.min(5.5, node.degree * 0.95);
+          const radius = baseRadius * perspective;
+          const color = colors[node.kind] || colors.other;
+          const depthOpacity = viewMode === "3d" ? clamp(1.06 - (depth + 100) / 520, 0.45, 1) : 1;
+
+          ctx.save();
+          ctx.globalAlpha = depthOpacity;
+          const glow = ctx.createRadialGradient(x, y, 0, x, y, radius * (isSelected ? 3.6 : 2.6));
+          glow.addColorStop(0, hexToRgba(color, isSelected ? 0.34 : 0.18));
+          glow.addColorStop(1, hexToRgba(color, 0));
+          ctx.fillStyle = glow;
+          ctx.beginPath();
+          ctx.arc(x, y, radius * (isSelected ? 3.6 : 2.6), 0, Math.PI * 2);
+          ctx.fill();
+
+          ctx.beginPath();
+          ctx.arc(x, y, radius + (isSelected ? 3 : 0), 0, Math.PI * 2);
+          ctx.fillStyle = "rgba(7, 16, 20, 0.92)";
+          ctx.fill();
+          ctx.lineWidth = isSelected ? 2.2 : 1.15;
+          ctx.strokeStyle = color;
+          ctx.stroke();
+
+          ctx.beginPath();
+          ctx.arc(x, y, Math.max(2.5, radius * 0.35), 0, Math.PI * 2);
+          ctx.fillStyle = color;
+          ctx.fill();
+
+          const shouldLabel = isSelected || camera.zoom > 0.68 || node.degree > 2;
+          if (shouldLabel) {
+            const label = node.label.length > 25 ? `${node.label.slice(0, 23)}…` : node.label;
+            drawLabel(label, x, y + radius + 15, "rgba(6, 14, 17, 0.76)", isSelected ? "#e8f1f0" : "#aab9b9", isSelected ? 11 : 10);
+          }
+          ctx.restore();
+        }
+
+        function drawLabel(text, x, y, background, foreground, size) {
+          ctx.font = `${size}px Inter, system-ui, sans-serif`;
+          const measured = ctx.measureText(text).width;
+          const padX = 6;
+          const boxHeight = size + 8;
+          ctx.fillStyle = background;
+          roundRect(ctx, x - measured / 2 - padX, y - boxHeight / 2, measured + padX * 2, boxHeight, 4);
+          ctx.fill();
+          ctx.fillStyle = foreground;
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillText(text, x, y + 0.5);
+        }
+
+        function roundRect(context, x, y, w, h, r) {
+          const radius = Math.min(r, w / 2, h / 2);
+          context.beginPath();
+          context.moveTo(x + radius, y);
+          context.arcTo(x + w, y, x + w, y + h, radius);
+          context.arcTo(x + w, y + h, x, y + h, radius);
+          context.arcTo(x, y + h, x, y, radius);
+          context.arcTo(x, y, x + w, y, radius);
+          context.closePath();
+        }
+
+        function hexToRgba(hex, alpha) {
+          const value = Number.parseInt(hex.slice(1), 16);
+          return `rgba(${(value >> 16) & 255}, ${(value >> 8) & 255}, ${value & 255}, ${alpha})`;
+        }
+
+        function localPoint(event) {
+          const rect = canvas.getBoundingClientRect();
+          return { x: event.clientX - rect.left, y: event.clientY - rect.top };
+        }
+
+        function hitNode(point) {
+          for (let i = screenNodes.length - 1; i >= 0; i -= 1) {
+            const item = screenNodes[i];
+            const radius = 13 + Math.min(7, item.node.degree);
+            if (Math.hypot(point.x - item.x, point.y - item.y) <= radius) return item;
+          }
+          return null;
+        }
+
+        function hitEdge(point) {
+          let best = null;
+          let bestDistance = 9;
+          screenEdges.forEach((item) => {
+            const distance = pointToSegment(point.x, point.y, item.source.x, item.source.y, item.target.x, item.target.y);
+            if (distance < bestDistance) {
+              bestDistance = distance;
+              best = item;
+            }
+          });
+          return best;
+        }
+
+        function pointToSegment(px, py, x1, y1, x2, y2) {
+          const dx = x2 - x1;
+          const dy = y2 - y1;
+          if (dx === 0 && dy === 0) return Math.hypot(px - x1, py - y1);
+          const t = clamp(((px - x1) * dx + (py - y1) * dy) / (dx * dx + dy * dy), 0, 1);
+          return Math.hypot(px - (x1 + t * dx), py - (y1 + t * dy));
+        }
+
+        canvas.addEventListener("pointerdown", (event) => {
+          canvas.setPointerCapture(event.pointerId);
+          const point = localPoint(event);
+          const nodeHit = hitNode(point);
+          if (nodeHit) {
+            interaction = { type: "node", node: nodeHit.node, lastX: point.x, lastY: point.y, perspective: nodeHit.perspective };
+            nodeHit.node.fixed = true;
+            select("node", nodeHit.node.id);
+          } else {
+            const edgeHit = hitEdge(point);
+            if (edgeHit) {
+              interaction = { type: "edge", moved: false, startX: point.x, startY: point.y };
+              select("edge", edgeHit.edge.id);
+            } else {
+              interaction = { type: "pan", lastX: point.x, lastY: point.y, moved: false };
+            }
+          }
+          canvas.classList.add("is-dragging");
+        });
+
+        canvas.addEventListener("pointermove", (event) => {
+          if (!interaction) return;
+          const point = localPoint(event);
+          if (interaction.type === "node") {
+            const scale = Math.max(0.2, camera.zoom * interaction.perspective);
+            interaction.node.x += (point.x - interaction.lastX) / scale;
+            interaction.node.y += (point.y - interaction.lastY) / scale;
+            interaction.node.vx = 0;
+            interaction.node.vy = 0;
+            interaction.lastX = point.x;
+            interaction.lastY = point.y;
+          } else if (interaction.type === "pan") {
+            const dx = point.x - interaction.lastX;
+            const dy = point.y - interaction.lastY;
+            camera.panX += dx;
+            camera.panY += dy;
+            interaction.lastX = point.x;
+            interaction.lastY = point.y;
+            if (Math.abs(dx) + Math.abs(dy) > 1) interaction.moved = true;
+          } else if (interaction.type === "edge") {
+            if (Math.hypot(point.x - interaction.startX, point.y - interaction.startY) > 4) interaction.moved = true;
+          }
+        });
+
+        function endPointer(event) {
+          if (!interaction) return;
+          if (interaction.type === "pan" && !interaction.moved) clearSelection();
+          interaction = null;
+          canvas.classList.remove("is-dragging");
+          if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
+        }
+
+        canvas.addEventListener("pointerup", endPointer);
+        canvas.addEventListener("pointercancel", endPointer);
+        canvas.addEventListener("dblclick", (event) => {
+          const item = hitNode(localPoint(event));
+          if (item) {
+            item.node.fixed = false;
+            physicsAlpha = Math.max(physicsAlpha, 0.35);
+            showToast(`${item.node.label} released to the layout`);
+          }
+        });
+
+        canvas.addEventListener("wheel", (event) => {
+          event.preventDefault();
+          const point = localPoint(event);
+          const previous = camera.zoom;
+          const next = clamp(previous * Math.exp(-event.deltaY * 0.0011), 0.28, 3.4);
+          const ratio = next / previous;
+          camera.panX = point.x - width / 2 - (point.x - width / 2 - camera.panX) * ratio;
+          camera.panY = point.y - height / 2 - (point.y - height / 2 - camera.panY) * ratio;
+          camera.zoom = next;
+        }, { passive: false });
+
+        canvas.addEventListener("keydown", (event) => {
+          const step = event.shiftKey ? 42 : 18;
+          if (event.key === "ArrowLeft") camera.panX += step;
+          else if (event.key === "ArrowRight") camera.panX -= step;
+          else if (event.key === "ArrowUp") camera.panY += step;
+          else if (event.key === "ArrowDown") camera.panY -= step;
+          else if (event.key === "+" || event.key === "=") camera.zoom = clamp(camera.zoom * 1.12, 0.28, 3.4);
+          else if (event.key === "-" || event.key === "_") camera.zoom = clamp(camera.zoom / 1.12, 0.28, 3.4);
+          else if (event.key === "Escape") clearSelection();
+          else return;
+          event.preventDefault();
+        });
+
+        function centerSelection(type, id) {
+          if (type === "node") {
+            const node = nodeById.get(id);
+            if (!node) return;
+            const point = project(node);
+            camera.panX += width / 2 - point.x;
+            camera.panY += height / 2 - point.y;
+            return;
+          }
+          const edge = edges.find((item) => item.id === id);
+          const source = edge ? nodeById.get(edge.sourceId) : null;
+          const target = edge ? nodeById.get(edge.targetId) : null;
+          if (!source || !target) return;
+          const sourcePoint = project(source);
+          const targetPoint = project(target);
+          camera.panX += width / 2 - (sourcePoint.x + targetPoint.x) / 2;
+          camera.panY += height / 2 - (sourcePoint.y + targetPoint.y) / 2;
+        }
+
+        function select(type, id, publish = true, focus = false) {
+          selected = { type, id };
+          drawerOpen = true;
+          if (focus) centerSelection(type, id);
+          renderDrawer();
+          if (publish) publishSelection();
+        }
+
+        function clearSelection(publish = true) {
+          selected = null;
+          drawerOpen = false;
+          renderDrawer();
+          if (publish) publishSelection();
+        }
+
+        function getSelectedObject() {
+          if (!selected) return null;
+          return selected.type === "node" ? nodeById.get(selected.id) : edges.find((edge) => edge.id === selected.id);
+        }
+
+        function renderDrawer() {
+          const item = getSelectedObject();
+          drawer.classList.toggle("open", Boolean(item && drawerOpen));
+          drawer.setAttribute("aria-hidden", item && drawerOpen ? "false" : "true");
+          drawerBody.replaceChildren();
+          if (!item) return;
+
+          if (selected.type === "node") renderNodeDetails(item);
+          else renderEdgeDetails(item);
+        }
+
+        function element(tag, className, text) {
+          const el = document.createElement(tag);
+          if (className) el.className = className;
+          if (text !== undefined) el.textContent = text;
+          return el;
+        }
+
+        function renderNodeDetails(node) {
+          drawerKicker.textContent = "Entity intelligence";
+          drawerBody.append(
+            element("div", "entity-type", node.kind.replaceAll("_", " ")),
+            element("h2", "drawer-title", node.label),
+            element("div", "drawer-id", `ENTITY ID · ${node.id}`)
+          );
+          if (node.subtitle) drawerBody.append(element("p", "description", node.subtitle));
+
+          const linked = edges.filter((edge) => edge.sourceId === node.id || edge.targetId === node.id);
+          const verifiedCount = linked.filter((edge) => edge.verification === "verified").length;
+          const metrics = element("div", "metrics");
+          metrics.append(
+            metric("Relationships", String(linked.length)),
+            metric("Verified", `${verifiedCount}/${linked.length || 0}`, verifiedCount === linked.length ? "verified" : "unverified")
+          );
+          if (node.riskScore !== null) metrics.append(metric("Risk signal", `${Math.round(node.riskScore * 100)}%`, node.riskScore > 0.7 ? "disputed" : node.riskScore > 0.45 ? "unverified" : "verified"));
+          drawerBody.append(metrics);
+
+          const section = element("div", "section-title", "Connected relationships");
+          const list = element("div", "evidence-list");
+          linked.slice(0, 6).forEach((edge) => {
+            const otherId = edge.sourceId === node.id ? edge.targetId : edge.sourceId;
+            const other = nodeById.get(otherId);
+            const card = element("div", "evidence-card");
+            const head = element("div", "evidence-card-head");
+            head.append(element("strong", "", `${edge.label} · ${other?.label ?? otherId}`), element("span", `evidence-tag ${statusClass(edge.verification)}`, edge.verification));
+            card.append(head, element("div", "evidence-meta", `RELATION ID · ${edge.id}`));
+            card.addEventListener("click", () => select("edge", edge.id));
+            card.style.cursor = "pointer";
+            list.append(card);
+          });
+          drawerBody.append(section, list);
+          expandButton.hidden = false;
+        }
+
+        function renderEdgeDetails(edge) {
+          const source = nodeById.get(edge.sourceId);
+          const target = nodeById.get(edge.targetId);
+          const linkedEvidence = edge.evidenceIds.map((id) => evidenceById.get(id)).filter(Boolean);
+          drawerKicker.textContent = "Relationship evidence";
+          drawerBody.append(
+            element("div", "relation-type", edge.kind.replaceAll("_", " ")),
+            element("h2", "drawer-title", edge.label),
+            element("div", "drawer-id", `RELATION ID · ${edge.id}`)
+          );
+
+          const route = element("div", "relation-route");
+          route.append(element("span", "route-node", source?.label ?? edge.sourceId), element("span", "route-arrow", edge.directed ? "→" : "↔"), element("span", "route-node", target?.label ?? edge.targetId));
+          drawerBody.append(route);
+
+          const metrics = element("div", "metrics");
+          metrics.append(
+            metric("Confidence", `${Math.round(edge.confidence * 100)}%`),
+            metric("Status", edge.verification, statusClass(edge.verification))
+          );
+          drawerBody.append(metrics, element("div", "section-title", `Evidence · ${linkedEvidence.length}`));
+
+          const list = element("div", "evidence-list");
+          if (!linkedEvidence.length) {
+            list.append(element("div", "no-evidence", "No linked source has been verified for this relationship. Treat it as a hypothesis until supporting evidence is added."));
+          } else {
+            linkedEvidence.forEach((record) => {
+              const card = element("article", "evidence-card");
+              const head = element("div", "evidence-card-head");
+              head.append(element("strong", "", record.title), element("span", `evidence-tag ${statusClass(record.status)}`, record.status));
+              card.append(head);
+              if (record.excerpt) card.append(element("p", "", record.excerpt));
+              const confidence = `${Math.round(record.confidence * 100)}% extraction confidence`;
+              card.append(element("div", "evidence-meta", [record.publishedAt, confidence, record.id].filter(Boolean).join(" · ")));
+              list.append(card);
+            });
+          }
+          drawerBody.append(list);
+          expandButton.hidden = false;
+          expandButton.textContent = "Expand endpoints";
+        }
+
+        function metric(label, valueText, className = "") {
+          const box = element("div", "metric");
+          box.append(element("div", "metric-label", label), element("div", `metric-value ${className}`, valueText));
+          return box;
+        }
+
+        function statusClass(status) {
+          return status === "verified" ? "verified" : status === "disputed" ? "disputed" : "unverified";
+        }
+
+        function selectionContext() {
+          if (!selected) return "Reloscope selection cleared.";
+          if (selected.type === "node") {
+            const node = nodeById.get(selected.id);
+            return `Reloscope selected entity ID ${node.id} (${node.label}). Use this stable entity ID for follow-up graph tools.`;
+          }
+          const edge = edges.find((item) => item.id === selected.id);
+          return `Reloscope selected relation ID ${edge.id}, source entity ID ${edge.sourceId}, target entity ID ${edge.targetId}. Use these stable IDs for follow-up graph tools.`;
+        }
+
+        function publishSelection() {
+          const context = selectionContext();
+          if (window.parent !== window) {
+            bridgeInitPromise.then((ready) => {
+              if (!ready) return;
+              rpc("ui/update-model-context", {
+                content: [{ type: "text", text: context }],
+                structuredContent: {
+                  selectedEntityId: selected?.type === "node" ? selected.id : null,
+                  selectedRelationId: selected?.type === "edge" ? selected.id : null,
+                  viewMode
+                }
+              }).catch(() => {});
+            });
+          }
+          if (window.openai?.setWidgetState) {
+            window.openai.setWidgetState({
+              modelContent: context,
+              privateContent: {
+                selectedEntityId: selected?.type === "node" ? selected.id : null,
+                selectedRelationId: selected?.type === "edge" ? selected.id : null,
+                viewMode
+              }
+            });
+          }
+        }
+
+        function rpc(method, params) {
+          return new Promise((resolve, reject) => {
+            if (window.parent === window) {
+              reject(new Error("MCP Apps bridge unavailable"));
+              return;
+            }
+            const id = rpcId++;
+            pending.set(id, { resolve, reject });
+            window.parent.postMessage({ jsonrpc: "2.0", id, method, params }, "*");
+            window.setTimeout(() => {
+              if (!pending.has(id)) return;
+              pending.delete(id);
+              reject(new Error(`${method} timed out`));
+            }, 7000);
+          });
+        }
+
+        function notify(method, params = {}) {
+          if (window.parent === window) return;
+          window.parent.postMessage({ jsonrpc: "2.0", method, params }, "*");
+        }
+
+        function initializeBridge() {
+          if (window.parent === window) return Promise.resolve(false);
+          return rpc("ui/initialize", {
+            protocolVersion: "2026-01-26",
+            appInfo: { name: "reloscope-graph", version: "0.1.0" },
+            appCapabilities: { availableDisplayModes: ["inline", "fullscreen"] }
+          }).then(() => {
+            bridgeReady = true;
+            notify("ui/notifications/initialized");
+            return true;
+          }).catch(() => {
+            bridgeReady = false;
+            return false;
+          });
+        }
+
+        async function sendPrompt(prompt) {
+          const params = { role: "user", content: [{ type: "text", text: prompt }] };
+          const ready = await bridgeInitPromise;
+          if (ready && bridgeReady) {
+            try {
+              await rpc("ui/message", params);
+              showToast("Sent to ChatGPT");
+            } catch {
+              if (window.openai?.sendFollowUpMessage) {
+                await window.openai.sendFollowUpMessage({ prompt });
+                showToast("Sent to ChatGPT");
+              } else {
+                showToast("ChatGPT messaging is temporarily unavailable");
+              }
+            }
+          } else if (window.openai?.sendFollowUpMessage) {
+            await window.openai.sendFollowUpMessage({ prompt });
+            showToast("Sent to ChatGPT");
+          } else {
+            showToast("Preview mode · ChatGPT messaging is unavailable");
+          }
+        }
+
+        window.addEventListener("message", (event) => {
+          if (event.source !== window.parent) return;
+          const message = event.data;
+          if (!message || message.jsonrpc !== "2.0") return;
+          if (message.id !== undefined && pending.has(message.id)) {
+            const request = pending.get(message.id);
+            pending.delete(message.id);
+            if (message.error) request.reject(message.error);
+            else request.resolve(message.result);
+            return;
+          }
+
+          if (message.method === "ui/notifications/tool-result") {
+            const structured = message.params?.structuredContent ?? message.params?.structured_content;
+            if (applyStructuredContent(structured, "tool")) showToast("Graph updated from ChatGPT");
+          }
+        }, { passive: true });
+
+        explainButton.addEventListener("click", () => {
+          if (!selected) return;
+          if (selected.type === "edge") {
+            const edge = edges.find((item) => item.id === selected.id);
+            sendPrompt(`Explain relation ID ${edge.id} between entity IDs ${edge.sourceId} and ${edge.targetId}. Separate verified facts from inference and cite the linked evidence.`);
+          } else {
+            const node = nodeById.get(selected.id);
+            sendPrompt(`Explain the role and risk of entity ID ${node.id} (${node.label}) in the current relationship graph. Use stable IDs and distinguish verified facts from inference.`);
+          }
+        });
+
+        expandButton.addEventListener("click", () => {
+          if (!selected) return;
+          if (selected.type === "node") {
+            const node = nodeById.get(selected.id);
+            sendPrompt(`Expand entity ID ${node.id} (${node.label}) by two hops in both directions, then render the updated Reloscope graph.`);
+          } else {
+            const edge = edges.find((item) => item.id === selected.id);
+            sendPrompt(`Expand both endpoint entity IDs ${edge.sourceId} and ${edge.targetId} by one hop, preserving relation ID ${edge.id} as the current focus, then render the updated Reloscope graph.`);
+          }
+        });
+
+        drawerClose.addEventListener("click", () => {
+          drawerOpen = false;
+          renderDrawer();
+        });
+
+        function setMode(mode) {
+          viewMode = mode;
+          mode2d.setAttribute("aria-pressed", mode === "2d" ? "true" : "false");
+          mode3d.setAttribute("aria-pressed", mode === "3d" ? "true" : "false");
+          modeLabel.textContent = mode === "3d" ? "Perspective network" : "Analytical plane";
+          publishSelection();
+        }
+
+        mode2d.addEventListener("click", () => setMode("2d"));
+        mode3d.addEventListener("click", () => setMode("3d"));
+        resetButton.addEventListener("click", resetView);
+
+        function resetView() {
+          camera = { panX: 0, panY: 0, zoom: 1 };
+          nodes.forEach((node, index) => {
+            const angle = (index / Math.max(1, nodes.length)) * Math.PI * 2;
+            const radius = 96 + (index % 4) * 38;
+            node.x = Math.cos(angle) * radius;
+            node.y = Math.sin(angle) * radius;
+            node.vx = 0;
+            node.vy = 0;
+            node.fixed = false;
+          });
+          physicsAlpha = 1;
+          showToast("View reset");
+        }
+
+        fullscreenButton.addEventListener("click", async () => {
+          try {
+            const ready = await bridgeInitPromise;
+            if (ready && bridgeReady) {
+              await rpc("ui/request-display-mode", { mode: "fullscreen" });
+            } else if (window.openai?.requestDisplayMode) {
+              await window.openai.requestDisplayMode({ mode: "fullscreen" });
+            } else if (document.fullscreenEnabled && app.requestFullscreen) {
+              await app.requestFullscreen();
+            } else {
+              showToast("Fullscreen is unavailable in this host");
+            }
+          } catch {
+            showToast("Fullscreen request was declined");
+          }
+        });
+
+        function showToast(message) {
+          toast.textContent = message;
+          toast.classList.add("show");
+          clearTimeout(toastTimer);
+          toastTimer = setTimeout(() => toast.classList.remove("show"), 1900);
+        }
+
+        const observer = new ResizeObserver(resize);
+        observer.observe(wrap);
+        resize();
+
+        bridgeInitPromise = initializeBridge();
+
+        const hostOutput = window.openai?.toolOutput;
+        const loadedHostOutput = applyStructuredContent(hostOutput, "tool");
+        if (!loadedHostOutput && window.parent === window) {
+          applyStructuredContent(fallback, "fallback");
+        } else if (!loadedHostOutput) {
+          emptyState.hidden = false;
+          statusText.textContent = "WAITING FOR TOOL RESULT";
+          footerCounts.textContent = "0 entities · 0 relations";
+        }
+
+        const persisted = window.openai?.widgetState?.privateContent ?? window.openai?.widgetState;
+        if (persisted?.viewMode === "2d" || persisted?.viewMode === "3d") setMode(persisted.viewMode);
+        else setMode("3d");
+        if (persisted?.selectedEntityId && nodeById.has(persisted.selectedEntityId)) select("node", persisted.selectedEntityId);
+        else if (persisted?.selectedRelationId && edges.some((edge) => edge.id === persisted.selectedRelationId)) select("edge", persisted.selectedRelationId);
+
+        requestAnimationFrame(draw);
+      })();
+    </script>
+  </body>
+</html>
