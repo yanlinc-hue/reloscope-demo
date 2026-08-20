@@ -1091,8 +1091,6 @@ export default function Home() {
     ? edges.find((edge) => edge.id === selectedEdgeId) ?? null
     : null;
 
-  const reviewCount = edges.filter((edge) => edge.status === "review").length;
-  const verifiedCount = edges.length - reviewCount;
   const isDemoDataset = useMemo(() =>
     nodes.length === DEMO_NODES.length
     && edges.length === DEMO_EDGES.length
@@ -1654,14 +1652,6 @@ export default function Home() {
           </div>
         </div>
       </header>
-
-      <section className="kpi-rail" aria-label="Project summary">
-        <div><span>Entities</span><strong>{nodes.length}</strong><em>ENTITIES</em></div>
-        <div><span>Assertions</span><strong>{edges.length}</strong><em>RELATIONS</em></div>
-        <div><span>Verified</span><strong>{verifiedCount}</strong><em>VERIFIED</em></div>
-        <div><span>In review</span><strong className="warning-value">{reviewCount}</strong><em>REVIEW</em></div>
-        <p>Ask the graph. Verify the evidence.<small>Model suggestions are not verified facts. Authorized review is required before publication.</small></p>
-      </section>
 
       <section className="studio-workspace">
         <aside className="left-panel agent-panel">
