@@ -26,11 +26,11 @@ export class GraphQueryError extends Error {
 export interface GraphNode {
   id: string;
   label: string;
-  kind: NodeKind;
+  kind: string;
   subtitle: string;
   summary: string;
   metric: string;
-  risk: DemoNode["risk"];
+  risk: DemoNode["risk"] | "unknown";
   status: DemoNode["status"];
   sourceIds: string[];
   position: {
@@ -44,12 +44,12 @@ export interface GraphEdge {
   id: string;
   sourceId: string;
   targetId: string;
-  kind: EdgeKind;
+  kind: string;
   label: string;
   weight: number;
   status: DemoEdge["status"];
   evidenceIds: string[];
-  confidence: number;
+  confidence: number | null;
   directed: boolean;
 }
 
@@ -62,12 +62,14 @@ export interface GraphEvidence {
   sourceSummary: string;
   excerpt: string;
   location: string;
-  confidence: number;
+  confidence: number | null;
   status: DemoEdge["status"];
 }
 
 export interface GraphPayload extends Record<string, unknown> {
   mode: GraphMode;
+  graphTitle?: string;
+  sourceLabel?: string;
   graph: {
     nodes: GraphNode[];
     edges: GraphEdge[];

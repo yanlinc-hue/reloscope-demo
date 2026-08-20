@@ -7,6 +7,10 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
 import {
+  buildUserGraphPayload,
+  customGraphInputSchema,
+} from "./custom-graph.js";
+import {
   buildGraphPayload,
   explainRelation,
   findShortestPaths,
@@ -52,7 +56,7 @@ const graphEdgeSchema = z.object({
   weight: z.number(),
   status: z.string(),
   evidenceIds: z.array(z.string()),
-  confidence: z.number(),
+  confidence: z.number().nullable(),
   directed: z.boolean(),
 });
 
@@ -65,7 +69,7 @@ const graphEvidenceSchema = z.object({
   sourceSummary: z.string(),
   excerpt: z.string(),
   location: z.string(),
-  confidence: z.number(),
+  confidence: z.number().nullable(),
   status: z.enum(["verified", "review"]),
 });
 
@@ -81,6 +85,8 @@ const selectionSchema = z.object({
 
 const graphPayloadShape = {
   mode: z.enum(["replace", "merge"]),
+  graphTitle: z.string().optional(),
+  sourceLabel: z.string().optional(),
   graph: graphSchema,
   evidence: z.array(graphEvidenceSchema),
   summary: z.string(),
@@ -335,6 +341,35 @@ export function createReloscopeServer({
         return success(
           result,
           `${result.summary} Rendering ${result.graph.nodes.length} entities and ${result.graph.edges.length} relationships.`,
+        );
+      } catch (error) {
+        return failure(error);
+      }
+    },
+  );
+
+  registerAppTool(
+    server,
+    "visualize_relationship_graph",
+    {
+      title: "Visualize a supplied relationship graph",
+      description:
+        "Turn relationships already present in the current conversation into an interactive graph. Include only entities, relationships, and evidence supported by the user's content; do not invent missing claims. Stable IDs and valid edge endpoints are required. The tool accepts bounded structured JSON only, replaces the current view, and never stores the graph.",
+      inputSchema: customGraphInputSchema,
+      outputSchema: graphPayloadShape,
+      annotations: readOnlyAnnotations,
+      _meta: {
+        ui: {
+          resourceUri: UI_RESOURCE_URI,
+        },
+      },
+    },
+    async (input) => {
+      try {
+        const result = buildUserGraphPayload(input);
+        return success(
+          result,
+          `${result.summary} Rendering ${result.graph.nodes.length} supplied entities and ${result.graph.edges.length} supplied relationships. The graph was not stored.`,
         );
       } catch (error) {
         return failure(error);

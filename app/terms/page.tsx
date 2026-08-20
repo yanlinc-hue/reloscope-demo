@@ -17,11 +17,11 @@ export default function TermsPage() {
       sections={[
         {
           title: "Preview service",
-          body: <p>Reloscope currently provides an experimental, read-only relationship visualization using synthetic data. Features may change as the product moves toward production readiness.</p>,
+          body: <p>Reloscope currently provides an experimental, read-only relationship visualization. The deployed preview uses synthetic data; a developer build may also render bounded structured graph data supplied through a tool call. Features may change as the product moves toward production readiness.</p>,
         },
         {
           title: "Permitted use",
-          body: <p>You may use Reloscope to explore authorized business data and evaluate relationship evidence. You must have the right to provide any data you submit and must comply with applicable law and contractual restrictions.</p>,
+          body: <p>You may use Reloscope to explore authorized business data and evaluate relationship evidence. You must have the right to provide any data you submit and must comply with applicable law and contractual restrictions. Do not provide confidential, regulated, or sensitive personal data to the unauthenticated developer preview.</p>,
         },
         {
           title: "Prohibited use",

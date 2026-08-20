@@ -29,6 +29,7 @@
     "privacyPolicyURL": "https://relation-star-map-819.yanlinc.chatgpt.site/privacy",
     "termsOfServiceURL": "https://relation-star-map-819.yanlinc.chatgpt.site/terms",
     "defaultPrompt": [
+      "Turn the relationships in this conversation into an interactive graph.",
       "Map Jichuan Power's upstream relationships.",
       "Trace the strongest path between two entities.",
       "Explain the evidence behind this relationship."

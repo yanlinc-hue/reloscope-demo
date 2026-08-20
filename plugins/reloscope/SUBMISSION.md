@@ -1,8 +1,9 @@
 # Reloscope plugin release checklist
 
-The current synthetic build is for developer-mode testing. Do not submit it to
-the public directory until Reloscope is connected to a genuine,
-user-authorized data workflow; OpenAI does not accept trial/demo-only apps.
+The deployed build is still the synthetic developer preview. The next local
+build adds a stateless, user-authorized workflow for relationship data supplied
+through the current conversation. Do not submit it to the public directory
+until that workflow has passed developer-mode, privacy, and policy testing.
 
 ## Listing
 
@@ -29,6 +30,7 @@ user-authorized data workflow; OpenAI does not accept trial/demo-only apps.
 4. **Evidence** — “What supports relationship E05?” Expected: source title, location, excerpt, verification state, and confidence.
 5. **Visual render** — “Show that result as a relationship map.” Expected: one interactive Reloscope component, usable inline and fullscreen.
 6. **Follow-up context** — Select a relationship in the component, then ask “Explain this relationship.” Expected: the selected relationship ID is used, not guessed from its label.
+7. **Conversation graph** — Provide a small set of entities and relationships, then ask “Turn this into an interactive relationship graph.” Expected: the supplied graph renders without being persisted and every relationship retains its supplied evidence IDs.
 
 ## Negative review tests
 
@@ -39,11 +41,11 @@ user-authorized data workflow; OpenAI does not accept trial/demo-only apps.
 
 ## Release notes
 
-Version 0.1 introduces read-only entity search, neighborhood expansion, path tracing, relationship evidence, and an interactive relationship graph. The public preview uses synthetic data. It does not accept customer uploads, mutate graph data, or make automated decisions.
+The next local preview adds `visualize_relationship_graph`, a bounded and stateless rendering path for structured relationship data supplied by ChatGPT. It does not accept customer uploads, persist supplied graphs, mutate external data, or make automated decisions. The deployed public preview remains synthetic-only until explicitly updated.
 
 ## Submission gates
 
-- Replace the bundled synthetic-only query source with a genuine, user-authorized data workflow.
+- Validate the conversation-supplied graph workflow against several non-synthetic, user-authorized examples.
 - Verify the individual or business publisher identity in the OpenAI Platform.
 - Confirm Apps Management Write permission for the submitting organization.
 - Add the OpenAI-provided domain challenge value to the production environment.

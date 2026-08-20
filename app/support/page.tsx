@@ -28,7 +28,7 @@ export default function SupportPage() {
         },
         {
           title: "Current limits",
-          body: <p>The public preview is read-only, uses synthetic data, and does not yet support customer authentication, durable workspaces, uploads, or relationship mutation.</p>,
+          body: <p>The deployed public preview is synthetic and read-only. The next developer build adds stateless conversation-supplied graphs, but still does not support customer authentication, durable workspaces, uploads, or relationship mutation.</p>,
         },
       ]}
     />
